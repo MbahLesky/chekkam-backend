@@ -6,6 +6,9 @@ import Link from "next/link";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import { AuthShell } from "@/components/auth-shell";
 
+const DEMO_ADMIN_EMAIL = "admin@chekkam.demo";
+const DEMO_ADMIN_PASSWORD = "ChekkamDemo123!";
+
 export default function LoginPage() {
   const router = useRouter();
   const supabase = getSupabaseBrowser();
@@ -79,6 +82,28 @@ export default function LoginPage() {
           Register your institution
         </Link>
       </form>
+
+      <div className="mt-5 rounded-[var(--radius-chekkam-sm)] border border-dashed border-chekkam-border bg-chekkam-tint p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-chekkam-faint">
+          Prototype — open for testing
+        </p>
+        <p className="mt-1.5 text-xs text-chekkam-muted">
+          This is a live account with full admin access, seeded for anyone reviewing the prototype.
+        </p>
+        <p className="mt-2 font-[family-name:var(--font-data)] text-xs text-chekkam-ink">
+          {DEMO_ADMIN_EMAIL} / {DEMO_ADMIN_PASSWORD}
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            setEmail(DEMO_ADMIN_EMAIL);
+            setPassword(DEMO_ADMIN_PASSWORD);
+          }}
+          className="mt-2 text-xs font-semibold text-chekkam-primary hover:underline"
+        >
+          Fill in demo credentials
+        </button>
+      </div>
     </AuthShell>
   );
 }

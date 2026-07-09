@@ -329,7 +329,7 @@ function SignResultModal({ result, onClose }: { result: SignResult; onClose: () 
       <div className="mb-4 text-xs font-semibold uppercase tracking-wider text-status-success">
         Signed successfully
       </div>
-      <div className="flex flex-col items-start gap-5 rounded-[var(--radius-chekkam)] bg-gradient-seal p-6 text-chekkam-lagoon sm:flex-row sm:items-center">
+      <div className="flex flex-col items-start gap-5 rounded-[var(--radius-chekkam)] bg-gradient-seal p-6 text-white sm:flex-row sm:items-center">
         <Image
           src={result.qr_image}
           alt="Verification QR code"

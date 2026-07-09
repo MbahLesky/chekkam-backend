@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { VERIFY_STATUS_STYLE } from "@/lib/verify-status-style";
 
 type VerifyResult = {
   status: "genuine" | "tampered" | "revoked" | "not_found";
@@ -9,36 +10,6 @@ type VerifyResult = {
   document_type?: string;
   verification_id?: string;
   reason?: string;
-};
-
-const STATUS_STYLE: Record<
-  string,
-  { label: string; gradient: string; icon: string; guidance: string }
-> = {
-  genuine: {
-    label: "Genuine.",
-    gradient: "from-status-success to-emerald-800",
-    icon: "✓",
-    guidance: "Its signature matches the issuing institution's records and has not been revoked.",
-  },
-  tampered: {
-    label: "Tampered.",
-    gradient: "from-status-danger to-rose-900",
-    icon: "✕",
-    guidance: "The content does not match what was signed. Contact the issuing institution before relying on it.",
-  },
-  revoked: {
-    label: "Revoked.",
-    gradient: "from-status-neutral to-slate-700",
-    icon: "⦸",
-    guidance: "The issuing institution withdrew this document. See the reason below if provided.",
-  },
-  not_found: {
-    label: "Not found.",
-    gradient: "from-status-neutral to-slate-700",
-    icon: "?",
-    guidance: "Double-check the ID or PIN, or contact the issuing institution if you believe this is a mistake.",
-  },
 };
 
 /**
@@ -72,7 +43,7 @@ export default function VerifyPage() {
     run();
   }, [params.verificationId]);
 
-  const style = result ? STATUS_STYLE[result.status] : null;
+  const style = result ? VERIFY_STATUS_STYLE[result.status] : null;
 
   return (
     <div className="flex flex-1 items-center justify-center bg-chekkam-surface px-4 py-16">
