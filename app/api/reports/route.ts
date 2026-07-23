@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { bearerTokenFrom } from "@/lib/supabase/client";
-import { requireUser } from "@/lib/auth";
+import { requireUser, resolveOptionalUserId } from "@/lib/auth";
 import { reportCreateSchema } from "@/lib/validation/schemas";
 import { parseBody } from "@/lib/validation/parse";
 import { toErrorResponse } from "@/lib/errors";
@@ -14,15 +13,6 @@ import {
   createCampaignFromReports,
 } from "@/lib/campaigns/matcher";
 
-/** Anonymous submission is allowed (FR-005); resolves reporter_id only if a session token is present. */
-async function resolveReporterId(req: NextRequest): Promise<string | null> {
-  const token = bearerTokenFrom(req);
-  if (!token) return null;
-  const admin = getSupabaseAdmin();
-  const { data } = await admin.auth.getUser(token);
-  return data.user?.id ?? null;
-}
-
 /**
  * POST /api/reports — submit suspicious content (SRS FR-010, 6.1).
  * Text/link content is analyzed synchronously (AI risk analysis + campaign
@@ -32,7 +22,7 @@ async function resolveReporterId(req: NextRequest): Promise<string | null> {
 export async function POST(req: NextRequest) {
   try {
     const body = parseBody(reportCreateSchema, await req.json());
-    const reporterId = await resolveReporterId(req);
+    const reporterId = await resolveOptionalUserId(req);
     const admin = getSupabaseAdmin();
 
     const location =
