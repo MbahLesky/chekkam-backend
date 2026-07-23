@@ -48,7 +48,9 @@ export async function POST(req: NextRequest) {
     }
 
     const body = parseBody(extensionCheckSchema, await req.json());
-    const analysis = await analyzeContent(body.content);
+    const analysis = await analyzeContent(body.content, {
+      inputType: body.type === "link" ? "link" : "text",
+    });
 
     // Best-effort persistence: an extension check still returns a result even
     // if Supabase isn't configured yet or the insert fails for any reason.

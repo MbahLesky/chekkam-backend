@@ -9,6 +9,7 @@
     "db:migrate": "node scripts/migrate.mjs",
     "db:seed": "tsx scripts/seed.ts",
     "lint": "eslint",
+    "test": "vitest run",
     "generate-signing-key": "node scripts/generate-signing-key.mjs",
     "issue-api-key": "node scripts/issue-api-key.mjs",
     "set-telegram-webhook": "node scripts/set-telegram-webhook.mjs"
@@ -36,6 +37,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }

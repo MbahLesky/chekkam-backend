@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { bearerTokenFrom } from "@/lib/supabase/client";
+import { requireUser } from "@/lib/auth";
 import { reportCreateSchema } from "@/lib/validation/schemas";
 import { parseBody } from "@/lib/validation/parse";
 import { toErrorResponse } from "@/lib/errors";
@@ -59,7 +60,10 @@ export async function POST(req: NextRequest) {
     let finalStatus: string = "pending";
 
     if (body.content_type === "text" || body.content_type === "link") {
-      const analysis = await analyzeContent(body.raw_content ?? "");
+      const analysis = await analyzeContent(body.raw_content ?? "", {
+        reportId,
+        inputType: body.content_type,
+      });
       const fingerprint = extractFingerprint(body.raw_content ?? "");
 
       let campaignId = await matchCampaign(admin, fingerprint);
@@ -113,17 +117,28 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/** GET /api/reports — filterable list for the analyst web dashboard (FR-081). */
+/**
+ * GET /api/reports — filterable list. Staff (analyst/admin/super_admin) get
+ * the full dashboard list (FR-081); everyone else is scoped to their own
+ * submitted reports ("my reports" history) regardless of other filters —
+ * this endpoint requires a session either way.
+ */
 export async function GET(req: NextRequest) {
   try {
+    const profile = await requireUser(req);
     const admin = getSupabaseAdmin();
     const { searchParams } = req.nextUrl;
+    const isStaff = ["analyst", "admin", "super_admin"].includes(profile.role);
 
     let query = admin
       .from("reports")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(100);
+
+    if (!isStaff) {
+      query = query.eq("reporter_id", profile.id);
+    }
 
     const status = searchParams.get("status");
     const riskLevel = searchParams.get("risk_level");
