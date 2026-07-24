@@ -5,6 +5,7 @@ import { reportCreateSchema } from "@/lib/validation/schemas";
 import { parseBody } from "@/lib/validation/parse";
 import { toErrorResponse } from "@/lib/errors";
 import { analyzeContent } from "@/lib/ai/risk-analysis";
+import { pickLang, tt } from "@/lib/i18n";
 import { extractFingerprint } from "@/lib/campaigns/fingerprint";
 import {
   matchCampaign,
@@ -29,8 +30,13 @@ async function resolveReporterId(req: NextRequest): Promise<string | null> {
  * for analyst review since OCR-based analysis is Phase 2 (FR-048).
  */
 export async function POST(req: NextRequest) {
+  let preferredLang = pickLang(req.headers.get("accept-language"));
   try {
     const body = parseBody(reportCreateSchema, await req.json());
+    preferredLang = pickLang(
+      body.language === "unknown" ? null : body.language,
+      req.headers.get("accept-language")
+    );
     const reporterId = await resolveReporterId(req);
     const admin = getSupabaseAdmin();
 
@@ -59,7 +65,7 @@ export async function POST(req: NextRequest) {
     let finalStatus: string = "pending";
 
     if (body.content_type === "text" || body.content_type === "link") {
-      const analysis = await analyzeContent(body.raw_content ?? "");
+      const analysis = await analyzeContent(body.raw_content ?? "", preferredLang);
       const fingerprint = extractFingerprint(body.raw_content ?? "");
 
       let campaignId = await matchCampaign(admin, fingerprint);
@@ -103,13 +109,13 @@ export async function POST(req: NextRequest) {
         status: finalStatus,
         message:
           finalStatus === "analyzed"
-            ? "Report analyzed. See GET /api/reports/:id for the full result."
-            : "Report received. Analyzing...",
+            ? tt("reportAnalyzed", preferredLang)
+            : tt("reportReceived", preferredLang),
       },
       { status: 201 }
     );
   } catch (err) {
-    return toErrorResponse(err);
+    return toErrorResponse(err, preferredLang);
   }
 }
 

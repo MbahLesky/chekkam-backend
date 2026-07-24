@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { RISK_ANALYSIS_SYSTEM_PROMPT, buildUserPrompt } from "@/lib/ai/prompts";
+import { Lang, trRisk } from "@/lib/i18n";
 
 export const riskAnalysisSchema = z.object({
   risk_level: z.enum(["low", "medium", "high", "critical"]),
@@ -42,10 +43,13 @@ const AI_TIMEOUT_MS = 8_000;
  * JSON (FR-025), so a submitter never sees a bare error instead of a result.
  * needs_human_review is always true regardless of AI confidence (FR-024).
  */
-export async function analyzeContent(content: string): Promise<RiskAnalysisResult> {
+export async function analyzeContent(
+  content: string,
+  preferredLanguage: Lang = "en"
+): Promise<RiskAnalysisResult> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    return ruleBasedFallback(content);
+    return ruleBasedFallback(content, preferredLanguage);
   }
 
   const controller = new AbortController();
@@ -64,30 +68,30 @@ export async function analyzeContent(content: string): Promise<RiskAnalysisResul
         temperature: 0.2,
         messages: [
           { role: "system", content: RISK_ANALYSIS_SYSTEM_PROMPT },
-          { role: "user", content: buildUserPrompt(content) },
+          { role: "user", content: buildUserPrompt(content, preferredLanguage) },
         ],
       }),
       signal: controller.signal,
     });
 
     if (!response.ok) {
-      return ruleBasedFallback(content);
+      return ruleBasedFallback(content, preferredLanguage);
     }
 
     const payload = await response.json();
     const raw = payload?.choices?.[0]?.message?.content;
     if (typeof raw !== "string") {
-      return ruleBasedFallback(content);
+      return ruleBasedFallback(content, preferredLanguage);
     }
 
     const parsed = riskAnalysisSchema.safeParse(JSON.parse(raw));
     if (!parsed.success) {
-      return ruleBasedFallback(content);
+      return ruleBasedFallback(content, preferredLanguage);
     }
 
     return { ...parsed.data, needs_human_review: true, source: "ai" };
   } catch {
-    return ruleBasedFallback(content);
+    return ruleBasedFallback(content, preferredLanguage);
   } finally {
     clearTimeout(timeout);
   }
@@ -133,7 +137,10 @@ const INSTITUTION_PATTERN =
  * so it reads as "we couldn't fully analyze this — a human will look at it"
  * rather than a false "all clear."
  */
-export function ruleBasedFallback(content: string): RiskAnalysisResult {
+export function ruleBasedFallback(
+  content: string,
+  preferredLanguage: Lang = "en"
+): RiskAnalysisResult {
   const lower = content.toLowerCase();
   const hasUrgency = URGENCY_WORDS.some((w) => lower.includes(w));
   const requestsPayment = PAYMENT_WORDS.some((w) => lower.includes(w));
@@ -146,19 +153,19 @@ export function ruleBasedFallback(content: string): RiskAnalysisResult {
   ).length;
 
   const reasons: string[] = [];
-  if (hasUrgency) reasons.push("Uses urgent, time-pressured language.");
-  if (requestsPayment) reasons.push("Mentions a payment or mobile-money transfer.");
-  if (requestsPersonalInfo) reasons.push("Asks for a password, PIN, or personal ID details.");
-  if (hasLink) reasons.push("Contains a link that could not be independently checked yet.");
+  if (hasUrgency) reasons.push(trRisk("urgent", preferredLanguage));
+  if (requestsPayment) reasons.push(trRisk("payment", preferredLanguage));
+  if (requestsPersonalInfo) reasons.push(trRisk("personalInfo", preferredLanguage));
+  if (hasLink) reasons.push(trRisk("link", preferredLanguage));
   if (reasons.length === 0) {
-    reasons.push("No high-risk keywords detected, but this has not been reviewed by a person yet.");
+    reasons.push(trRisk("noHighRisk", preferredLanguage));
   }
 
   return {
     risk_level: signalCount >= 2 ? "high" : signalCount === 1 ? "medium" : "low",
     risk_score: Math.min(40 + signalCount * 20, 90),
     category: requestsPayment ? "mobile_money_fraud" : hasLink ? "phishing" : "other",
-    language: "unknown",
+    language: preferredLanguage,
     reasons,
     indicators: {
       has_urgency_pressure: hasUrgency,
@@ -167,8 +174,7 @@ export function ruleBasedFallback(content: string): RiskAnalysisResult {
       impersonates_institution: institutionMatch,
       contains_suspicious_link: hasLink,
     },
-    recommended_action:
-      "Do not send money or share personal information until this has been verified.",
+    recommended_action: trRisk("recommendedAction", preferredLanguage),
     confidence: "low",
     needs_human_review: true,
     source: "rule_based_fallback",

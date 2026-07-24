@@ -12,10 +12,12 @@ import {
 import { checkRateLimit } from "@/lib/rate-limit";
 import { parseBody } from "@/lib/validation/parse";
 import { toErrorResponse } from "@/lib/errors";
+import { pickLang, tt } from "@/lib/i18n";
 
 const extensionCheckSchema = z.object({
   content: z.string().min(1).max(5000),
   type: z.enum(["text", "link", "page"]),
+  language: z.enum(["en", "fr"]).optional(),
 });
 
 const RATE_LIMIT = 30;
@@ -28,6 +30,7 @@ const RATE_WINDOW_SECONDS = 10 * 60;
  * CORS (including OPTIONS preflight) is handled globally by proxy.ts.
  */
 export async function POST(req: NextRequest) {
+  const requestLang = pickLang(req.headers.get("accept-language"));
   try {
     const clientIp =
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
@@ -40,7 +43,7 @@ export async function POST(req: NextRequest) {
         {
           error: {
             code: "RATE_LIMITED",
-            message: "Too many checks from this network. Please wait a bit and try again.",
+            message: tt("rateLimitedExtension", requestLang),
           },
         },
         { status: 429 }
@@ -48,7 +51,8 @@ export async function POST(req: NextRequest) {
     }
 
     const body = parseBody(extensionCheckSchema, await req.json());
-    const analysis = await analyzeContent(body.content);
+    const preferredLang = pickLang(body.language, req.headers.get("accept-language"));
+    const analysis = await analyzeContent(body.content, preferredLang);
 
     // Best-effort persistence: an extension check still returns a result even
     // if Supabase isn't configured yet or the insert fails for any reason.
@@ -71,7 +75,7 @@ export async function POST(req: NextRequest) {
           recommended_action: analysis.recommended_action,
           needs_human_review: true,
           confidence: analysis.confidence,
-          language: analysis.language,
+          language: analysis.language === "unknown" ? preferredLang : analysis.language,
         })
         .select("id")
         .single();
@@ -108,6 +112,6 @@ export async function POST(req: NextRequest) {
       needs_human_review: true,
     });
   } catch (err) {
-    return toErrorResponse(err);
+    return toErrorResponse(err, requestLang);
   }
 }

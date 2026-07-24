@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { LanguageToggle } from "@/components/language-toggle";
+import { useI18n } from "@/components/i18n-provider";
 
 type ReportResult = {
   id: string;
@@ -14,19 +16,15 @@ type ReportResult = {
   confidence?: string;
 };
 
-const RISK_LABEL: Record<string, { label: string; className: string }> = {
-  low: { label: "Low risk", className: "bg-status-success/12 text-status-success" },
-  medium: { label: "Medium risk", className: "bg-status-warning/12 text-status-warning" },
-  high: { label: "High risk", className: "bg-status-danger/12 text-status-danger" },
-  critical: { label: "Critical risk", className: "bg-status-danger/12 text-status-danger" },
+const RISK_CLASS: Record<string, string> = {
+  low: "bg-status-success/12 text-status-success",
+  medium: "bg-status-warning/12 text-status-warning",
+  high: "bg-status-danger/12 text-status-danger",
+  critical: "bg-status-danger/12 text-status-danger",
 };
 
-/**
- * Citizen-facing "check a message" page (FR-010-012) — the web equivalent of
- * the Flutter app's report form, so anyone can test the core loop from a
- * browser with no install. Anonymous submission is allowed by design (FR-005).
- */
 export default function CheckPage() {
+  const { lang, t } = useI18n();
   const [contentType, setContentType] = useState<"text" | "link">("text");
   const [content, setContent] = useState("");
   const [result, setResult] = useState<ReportResult | null>(null);
@@ -43,54 +41,69 @@ export default function CheckPage() {
     try {
       const submitRes = await fetch("/api/reports", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content_type: contentType, raw_content: content, channel: "web" }),
+        headers: { "Content-Type": "application/json", "Accept-Language": lang },
+        body: JSON.stringify({
+          content_type: contentType,
+          raw_content: content,
+          channel: "web",
+          language: lang,
+        }),
       });
       const submitted = await submitRes.json();
-      if (!submitRes.ok) throw new Error(submitted?.error?.message ?? "Failed to submit.");
+      if (!submitRes.ok) throw new Error(submitted?.error?.message ?? t("failedSubmit"));
 
-      const detailRes = await fetch(`/api/reports/${submitted.id}`);
+      const detailRes = await fetch(`/api/reports/${submitted.id}?lang=${lang}`, {
+        headers: { "Accept-Language": lang },
+      });
       const detail = await detailRes.json();
-      if (!detailRes.ok) throw new Error(detail?.error?.message ?? "Failed to load result.");
+      if (!detailRes.ok) throw new Error(detail?.error?.message ?? t("failedLoadResult"));
       setResult(detail as ReportResult);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(err instanceof Error ? err.message : t("somethingWrong"));
     } finally {
       setLoading(false);
     }
   }
 
-  const risk = result?.risk_level ? RISK_LABEL[result.risk_level] : null;
+  const riskLabel = result?.risk_level
+    ? {
+        low: t("lowRisk"),
+        medium: t("mediumRisk"),
+        high: t("highRisk"),
+        critical: t("criticalRisk"),
+      }[result.risk_level]
+    : null;
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-2xl flex-1 flex-col justify-center px-6 py-16">
-      <Link href="/" className="mb-6 text-sm font-medium text-chekkam-muted hover:text-chekkam-primary">
-        ← Chekkam
-      </Link>
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <Link href="/" className="text-sm font-medium text-chekkam-muted hover:text-chekkam-primary">
+          ← {t("backChekkam")}
+        </Link>
+        <LanguageToggle />
+      </div>
       <div className="text-xs font-semibold uppercase tracking-wider text-chekkam-primary">
-        Check a message
+        {t("checkMessage")}
       </div>
       <h1 className="mt-1 font-[family-name:var(--font-heading)] text-3xl font-semibold text-chekkam-ink">
-        Got something suspicious?
+        {t("gotSuspicious")}
       </h1>
-      <p className="mt-2 text-sm text-chekkam-muted">
-        Paste a suspicious message or link. This never means you did anything wrong by receiving it.
-      </p>
+      <p className="mt-2 text-sm text-chekkam-muted">{t("checkIntro")}</p>
 
       <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
         <div className="flex gap-2">
-          {(["text", "link"] as const).map((t) => (
+          {(["text", "link"] as const).map((type) => (
             <button
-              key={t}
+              key={type}
               type="button"
-              onClick={() => setContentType(t)}
+              onClick={() => setContentType(type)}
               className={`rounded-[var(--radius-chekkam-sm)] px-4 py-1.5 text-sm font-medium transition ${
-                contentType === t
+                contentType === type
                   ? "bg-chekkam-primary text-white"
                   : "bg-chekkam-tint text-chekkam-muted hover:bg-chekkam-border"
               }`}
             >
-              {t === "text" ? "Text" : "Link"}
+              {type === "text" ? t("text") : t("link")}
             </button>
           ))}
         </div>
@@ -99,9 +112,7 @@ export default function CheckPage() {
           rows={6}
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder={
-            contentType === "link" ? "https://example.com/suspicious-link" : "Paste the message here…"
-          }
+          placeholder={contentType === "link" ? "https://example.com/suspicious-link" : t("pasteMessageHere")}
           className="w-full rounded-[var(--radius-chekkam)] border border-chekkam-border bg-chekkam-tint px-4 py-3 text-sm text-chekkam-ink outline-none transition focus:border-chekkam-primary focus:bg-chekkam-surface-raised focus:ring-2 focus:ring-chekkam-primary/20"
         />
         {error && <p className="text-sm text-status-danger">{error}</p>}
@@ -110,23 +121,27 @@ export default function CheckPage() {
           disabled={loading}
           className="rounded-[var(--radius-chekkam-sm)] bg-gradient-lagoon px-4 py-2.5 text-sm font-semibold text-white shadow-chekkam-sm transition hover:brightness-110 disabled:opacity-60"
         >
-          {loading ? "Analyzing…" : "Check this"}
+          {loading ? t("analyzing") : t("checkThis")}
         </button>
       </form>
 
       {result && (
         <div className="mt-8 rounded-[var(--radius-chekkam)] border border-chekkam-border bg-chekkam-surface-raised p-6 shadow-chekkam-md">
-          {risk ? (
-            <span className={`inline-block rounded-full px-3 py-1 text-sm font-semibold ${risk.className}`}>
-              {risk.label}
+          {result.risk_level && riskLabel ? (
+            <span
+              className={`inline-block rounded-full px-3 py-1 text-sm font-semibold ${
+                RISK_CLASS[result.risk_level] ?? "bg-status-neutral/12 text-status-neutral"
+              }`}
+            >
+              {riskLabel}
             </span>
           ) : (
             <span className="inline-block rounded-full bg-status-neutral/12 px-3 py-1 text-sm font-semibold text-status-neutral">
-              Pending review
+              {t("pendingReview")}
             </span>
           )}
           <p className="mt-4 font-[family-name:var(--font-heading)] text-xl font-semibold text-chekkam-ink">
-            {result.recommended_action ?? "This report is queued for review — check back shortly."}
+            {result.recommended_action ?? t("reportQueued")}
           </p>
           {result.ai_reasons && result.ai_reasons.length > 0 && (
             <ul className="mt-4 list-inside list-disc text-sm text-chekkam-muted">
@@ -136,21 +151,18 @@ export default function CheckPage() {
             </ul>
           )}
           <div className="mt-5 flex items-start gap-3 rounded-[var(--radius-chekkam-sm)] bg-chekkam-tint p-4">
-            <span className="text-chekkam-primary">ⓘ</span>
-            <p className="text-sm text-chekkam-muted">
-              This is an automated first look. A Chekkam analyst reviews every report before any final
-              action is taken.
-            </p>
+            <span className="text-chekkam-primary">i</span>
+            <p className="text-sm text-chekkam-muted">{t("automatedFirstLook")}</p>
           </div>
         </div>
       )}
 
       <div className="mt-10 flex gap-4 text-sm">
         <Link href="/verify" className="font-medium text-chekkam-primary hover:underline">
-          Verify a document →
+          {t("verifyDocument")} →
         </Link>
         <Link href="/alerts" className="font-medium text-chekkam-primary hover:underline">
-          See public alerts →
+          {t("seePublicAlerts")} →
         </Link>
       </div>
     </div>

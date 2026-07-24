@@ -3,30 +3,33 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { LanguageToggle } from "@/components/language-toggle";
+import { useI18n } from "@/components/i18n-provider";
 import { useSession } from "@/lib/hooks/useSession";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
-const NAV_ITEMS = [
-  { href: "/dashboard/reports", label: "Reports" },
-  { href: "/dashboard/documents", label: "Documents" },
-  { href: "/dashboard/alerts", label: "Public alerts" },
-  { href: "/dashboard/safety-alerts", label: "Safety alerts" },
-];
-
-const ROLE_LABEL: Record<string, string> = {
-  citizen: "Citizen",
-  institution_officer: "Institution officer",
-  analyst: "Analyst",
-  admin: "Admin",
-  super_admin: "Super admin",
-};
-
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { session, loading, configured } = useSession();
+  const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
   const supabase = getSupabaseBrowser();
   const [role, setRole] = useState<string | null>(null);
+
+  const navItems = [
+    { href: "/dashboard/reports", label: t("reports") },
+    { href: "/dashboard/documents", label: t("documents") },
+    { href: "/dashboard/alerts", label: t("publicAlerts") },
+    { href: "/dashboard/safety-alerts", label: t("safetyAlerts") },
+  ];
+
+  const roleLabel: Record<string, string> = {
+    citizen: t("citizen"),
+    institution_officer: t("institutionOfficer"),
+    analyst: t("analyst"),
+    admin: t("admin"),
+    super_admin: t("superAdmin"),
+  };
 
   useEffect(() => {
     if (!supabase || !session) return;
@@ -41,10 +44,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!configured) {
     return (
       <Shell>
-        <p className="text-sm text-chekkam-ink">
-          Supabase is not configured yet — set <code>NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
-          <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in <code>.env.local</code> to enable sign-in.
-        </p>
+        <p className="text-sm text-chekkam-ink">{t("supabaseMissingBody")}</p>
       </Shell>
     );
   }
@@ -52,7 +52,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (loading) {
     return (
       <Shell>
-        <p className="text-sm text-chekkam-muted">Loading…</p>
+        <p className="text-sm text-chekkam-muted">{t("loading")}</p>
       </Shell>
     );
   }
@@ -61,11 +61,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return (
       <Shell>
         <p className="text-sm text-chekkam-ink">
-          You need to{" "}
+          {t("signInRequired")}{" "}
           <Link href="/login" className="font-medium text-chekkam-primary underline">
-            sign in
-          </Link>{" "}
-          to view the dashboard.
+            {t("signIn")}
+          </Link>
         </p>
       </Shell>
     );
@@ -74,12 +73,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-full flex-1">
       <aside className="flex w-56 flex-shrink-0 flex-col bg-gradient-lagoon px-4 py-6 text-white">
-        <div className="mb-8 flex items-center gap-2.5 px-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15 text-xs">✓</span>
-          <span className="font-[family-name:var(--font-heading)] text-base font-semibold">Chekkam</span>
+        <div className="mb-8 flex items-center justify-between gap-2 px-2">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15 text-xs">✓</span>
+            <span className="font-[family-name:var(--font-heading)] text-base font-semibold">Chekkam</span>
+          </div>
         </div>
         <nav className="flex flex-1 flex-col gap-1">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const active = pathname === item.href;
             return (
               <Link
@@ -97,16 +98,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="border-t border-white/10 pt-3">
           <div className="px-3 py-1 text-xs text-white/50">
             {session.user.email}
-            {role && <div className="mt-0.5 font-medium text-white/75">{ROLE_LABEL[role] ?? role}</div>}
+            {role && <div className="mt-0.5 font-medium text-white/75">{roleLabel[role] ?? role}</div>}
+          </div>
+          <div className="mt-2 px-3">
+            <LanguageToggle dark />
           </div>
           <button
             onClick={async () => {
               await supabase?.auth.signOut();
               router.push("/login");
             }}
-            className="mt-1 w-full rounded-[var(--radius-chekkam-sm)] px-3 py-2 text-left text-sm font-medium text-white/50 transition hover:bg-white/8 hover:text-white/80"
+            className="mt-2 w-full rounded-[var(--radius-chekkam-sm)] px-3 py-2 text-left text-sm font-medium text-white/50 transition hover:bg-white/8 hover:text-white/80"
           >
-            Sign out
+            {t("signOut")}
           </button>
         </div>
       </aside>

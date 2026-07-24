@@ -3,7 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { VERIFY_STATUS_STYLE } from "@/lib/verify-status-style";
+import { LanguageToggle } from "@/components/language-toggle";
+import { useI18n } from "@/components/i18n-provider";
+import { getVerifyStatusStyle } from "@/lib/verify-status-style";
 
 type VerifyResult = {
   status: "genuine" | "tampered" | "revoked" | "not_found";
@@ -13,12 +15,8 @@ type VerifyResult = {
   reason?: string;
 };
 
-/**
- * Citizen-facing document verification hub (FR-043-044) — manual ID/PIN
- * entry or a file upload, mirroring the Flutter app's scan/manual/upload
- * options for people testing from a plain browser with no app installed.
- */
 export default function VerifyHubPage() {
+  const { lang, t } = useI18n();
   const router = useRouter();
   const [verificationId, setVerificationId] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -36,7 +34,7 @@ export default function VerifyHubPage() {
   async function handleUploadSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) {
-      setError("Choose a file to check.");
+      setError(t("chooseFileToCheck"));
       return;
     }
     setLoading(true);
@@ -47,42 +45,48 @@ export default function VerifyHubPage() {
       const form = new FormData();
       form.set("file", file);
       form.set("channel", "web");
+      form.set("language", lang);
       if (verificationId.trim()) form.set("verification_id", verificationId.trim());
 
-      const res = await fetch("/api/documents/verify-upload", { method: "POST", body: form });
+      const res = await fetch(`/api/documents/verify-upload?lang=${lang}`, {
+        method: "POST",
+        headers: { "Accept-Language": lang },
+        body: form,
+      });
       const body = await res.json();
-      if (!res.ok) throw new Error(body?.error?.message ?? "Failed to verify document.");
+      if (!res.ok) throw new Error(body?.error?.message ?? t("failedVerifyDocument"));
       setUploadResult(body as VerifyResult);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(err instanceof Error ? err.message : t("somethingWrong"));
     } finally {
       setLoading(false);
     }
   }
 
-  const style = uploadResult ? VERIFY_STATUS_STYLE[uploadResult.status] : null;
+  const style = uploadResult ? getVerifyStatusStyle(uploadResult.status, lang) : null;
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-2xl flex-1 flex-col justify-center px-6 py-16">
-      <Link href="/" className="mb-6 text-sm font-medium text-chekkam-muted hover:text-chekkam-primary">
-        ← Chekkam
-      </Link>
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <Link href="/" className="text-sm font-medium text-chekkam-muted hover:text-chekkam-primary">
+          ← {t("backChekkam")}
+        </Link>
+        <LanguageToggle />
+      </div>
       <div className="text-xs font-semibold uppercase tracking-wider text-chekkam-primary">
-        Verify a document
+        {t("verifyDocument")}
       </div>
       <h1 className="mt-1 font-[family-name:var(--font-heading)] text-3xl font-semibold text-chekkam-ink">
-        Check whether it&rsquo;s genuine
+        {t("checkGenuine")}
       </h1>
-      <p className="mt-2 text-sm text-chekkam-muted">
-        Works even for a photocopy or forwarded scan — enter the ID printed on it, or upload the file.
-      </p>
+      <p className="mt-2 text-sm text-chekkam-muted">{t("verifyIntro")}</p>
 
       <form
         onSubmit={handleManualSubmit}
         className="mt-6 flex flex-col gap-3 rounded-[var(--radius-chekkam)] border border-chekkam-border bg-chekkam-surface-raised p-6 shadow-chekkam-sm"
       >
         <label className="block">
-          <span className="text-sm font-medium text-chekkam-ink">Verification ID or PIN</span>
+          <span className="text-sm font-medium text-chekkam-ink">{t("verificationIdOrPin")}</span>
           <input
             value={verificationId}
             onChange={(e) => setVerificationId(e.target.value)}
@@ -94,13 +98,13 @@ export default function VerifyHubPage() {
           type="submit"
           className="rounded-[var(--radius-chekkam-sm)] bg-gradient-lagoon px-4 py-2.5 text-sm font-semibold text-white shadow-chekkam-sm transition hover:brightness-110"
         >
-          Look up by ID
+          {t("lookUpById")}
         </button>
       </form>
 
       <div className="my-6 flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-chekkam-faint">
         <div className="h-px flex-1 bg-chekkam-border" />
-        or upload the file
+        {t("orUploadFile")}
         <div className="h-px flex-1 bg-chekkam-border" />
       </div>
 
@@ -109,7 +113,7 @@ export default function VerifyHubPage() {
         className="flex flex-col gap-3 rounded-[var(--radius-chekkam)] border border-chekkam-border bg-chekkam-surface-raised p-6 shadow-chekkam-sm"
       >
         <label className="block">
-          <span className="text-sm font-medium text-chekkam-ink">Document file</span>
+          <span className="text-sm font-medium text-chekkam-ink">{t("documentFile")}</span>
           <input
             type="file"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
@@ -122,7 +126,7 @@ export default function VerifyHubPage() {
           disabled={loading}
           className="rounded-[var(--radius-chekkam-sm)] border border-chekkam-primary px-4 py-2.5 text-sm font-semibold text-chekkam-primary transition hover:bg-chekkam-tint disabled:opacity-60"
         >
-          {loading ? "Checking…" : "Check this file"}
+          {loading ? t("checking") : t("checkThisFile")}
         </button>
       </form>
 
@@ -139,7 +143,7 @@ export default function VerifyHubPage() {
           <p className="mx-auto mt-2 max-w-xs text-sm text-chekkam-muted">{style.guidance}</p>
           {uploadResult.institution && (
             <p className="mt-3 text-sm text-chekkam-ink">
-              Issued by <span className="font-semibold">{uploadResult.institution}</span>
+              {t("issuedBy")} <span className="font-semibold">{uploadResult.institution}</span>
             </p>
           )}
         </div>
@@ -147,10 +151,10 @@ export default function VerifyHubPage() {
 
       <div className="mt-10 flex gap-4 text-sm">
         <Link href="/check" className="font-medium text-chekkam-primary hover:underline">
-          Check a message →
+          {t("checkMessage")} →
         </Link>
         <Link href="/alerts" className="font-medium text-chekkam-primary hover:underline">
-          See public alerts →
+          {t("seePublicAlerts")} →
         </Link>
       </div>
     </div>

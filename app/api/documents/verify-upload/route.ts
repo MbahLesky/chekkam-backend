@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { ValidationError, toErrorResponse } from "@/lib/errors";
+import { pickLang, tt } from "@/lib/i18n";
 import { verifyByUpload, VerifierChannel } from "@/lib/documents/verify";
 
 /**
@@ -12,11 +13,19 @@ import { verifyByUpload, VerifierChannel } from "@/lib/documents/verify";
  * the WhatsApp/Telegram bots, so there is exactly one verification path.
  */
 export async function POST(req: NextRequest) {
+  let preferredLang = pickLang(
+    req.nextUrl.searchParams.get("lang"),
+    req.headers.get("accept-language")
+  );
   try {
     const form = await req.formData();
+    preferredLang = pickLang(
+      (form.get("language") as string | null) ?? req.nextUrl.searchParams.get("lang"),
+      req.headers.get("accept-language")
+    );
     const file = form.get("file");
     if (!(file instanceof File)) {
-      throw new ValidationError("file is required (multipart/form-data).", "file");
+      throw new ValidationError(tt("fileRequired", preferredLang), "file");
     }
     const verificationIdField = form.get("verification_id");
     const channel = (form.get("channel") as VerifierChannel) || "web";
@@ -31,6 +40,6 @@ export async function POST(req: NextRequest) {
     );
     return NextResponse.json(result);
   } catch (err) {
-    return toErrorResponse(err);
+    return toErrorResponse(err, preferredLang);
   }
 }
