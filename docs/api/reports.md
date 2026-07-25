@@ -26,11 +26,16 @@ Submit suspicious content for analysis. Anonymous submission is allowed
 | `channel` | enum | default `"mobile"` |
 | `language` | enum | default `"unknown"` |
 | `lat`, `lng` | number | optional |
+| `evidence_id` | uuid | optional — links a prior `POST /api/ocr/upload` result (`docs/api/ocr.md`) to this report by setting `evidence.report_id`. Best-effort: an unknown/foreign ID is a silent no-op, never a failed submission. |
 
 `text`/`link` content is analyzed synchronously (AI risk analysis + campaign
 matching) before the response is returned. `image`/`file` content is left
-`pending` for analyst review — OCR/media analysis is a later phase (not yet
-built; see the project's AI implementation plan).
+`pending` for analyst review — there is no server-side OCR-then-analyze
+pipeline; the client is expected to call `POST /api/ocr/upload` first, then
+submit the extracted text here as `content_type: "text"` with `evidence_id`
+set, reusing this same endpoint rather than a second one (see
+`lib/features/ocr` / `report_form_screen.dart`'s "Image" option in the
+frontend for the reference implementation).
 
 **Response** `201`
 ```json
@@ -64,6 +69,13 @@ Full analysis detail for one report (SRS §6.1). Deliberately **unauthenticated
 by design** — the report's UUID itself acts as the lookup secret, since
 anonymous submitters (no session) have no other way to check their own
 report's status. Do not add auth here; it would break anonymous reporting.
+
+When the report belongs to a scam campaign (`lib/campaigns/matcher.ts`), the
+response includes `related_reports`: other reports in the same campaign,
+`id`/`risk_level`/`category`/`created_at` only — never another citizen's
+`raw_content` or `reporter_id` (same redaction posture as
+`lib/privacy/redact.ts`). Empty array if there's no campaign. This reuses the
+existing campaign-matching infrastructure; it is not a new similarity engine.
 
 ## `PATCH /api/reports/:id`
 

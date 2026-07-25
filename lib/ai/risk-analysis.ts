@@ -29,6 +29,8 @@ export const riskAnalysisSchema = z.object({
   }),
   recommended_action: z.string(),
   confidence: z.enum(["low", "medium", "high"]),
+  /** Verbatim quotes from the submitted content that drove the assessment, for UI highlighting. */
+  suspicious_phrases: z.array(z.string()).max(6).default([]),
 });
 
 export type RiskAnalysisResult = z.infer<typeof riskAnalysisSchema> & {
@@ -180,6 +182,16 @@ const INSTITUTION_PATTERN =
  * so it reads as "we couldn't fully analyze this — a human will look at it"
  * rather than a false "all clear."
  */
+/** Returns the first matching word's original-case substring as it appears in `content`, if any. */
+function findOriginalCaseMatch(content: string, words: string[]): string | null {
+  const lower = content.toLowerCase();
+  for (const word of words) {
+    const index = lower.indexOf(word);
+    if (index !== -1) return content.slice(index, index + word.length);
+  }
+  return null;
+}
+
 export function ruleBasedFallback(content: string): RiskAnalysisResult {
   const lower = content.toLowerCase();
   const hasUrgency = URGENCY_WORDS.some((w) => lower.includes(w));
@@ -193,10 +205,28 @@ export function ruleBasedFallback(content: string): RiskAnalysisResult {
   ).length;
 
   const reasons: string[] = [];
-  if (hasUrgency) reasons.push("Uses urgent, time-pressured language.");
-  if (requestsPayment) reasons.push("Mentions a payment or mobile-money transfer.");
-  if (requestsPersonalInfo) reasons.push("Asks for a password, PIN, or personal ID details.");
-  if (hasLink) reasons.push("Contains a link that could not be independently checked yet.");
+  const suspiciousPhrases: string[] = [];
+  if (hasUrgency) {
+    reasons.push("Uses urgent, time-pressured language.");
+    const match = findOriginalCaseMatch(content, URGENCY_WORDS);
+    if (match) suspiciousPhrases.push(match);
+  }
+  if (requestsPayment) {
+    reasons.push("Mentions a payment or mobile-money transfer.");
+    const match = findOriginalCaseMatch(content, PAYMENT_WORDS);
+    if (match) suspiciousPhrases.push(match);
+  }
+  if (requestsPersonalInfo) {
+    reasons.push("Asks for a password, PIN, or personal ID details.");
+    const match = findOriginalCaseMatch(content, PERSONAL_INFO_WORDS);
+    if (match) suspiciousPhrases.push(match);
+  }
+  if (hasLink) {
+    reasons.push("Contains a link that could not be independently checked yet.");
+    const match = content.match(LINK_PATTERN)?.[0];
+    if (match) suspiciousPhrases.push(match);
+  }
+  if (institutionMatch) suspiciousPhrases.push(institutionMatch);
   if (reasons.length === 0) {
     reasons.push("No high-risk keywords detected, but this has not been reviewed by a person yet.");
   }
@@ -217,6 +247,7 @@ export function ruleBasedFallback(content: string): RiskAnalysisResult {
     recommended_action:
       "Do not send money or share personal information until this has been verified.",
     confidence: "low",
+    suspicious_phrases: suspiciousPhrases,
     needs_human_review: true,
     source: "rule_based_fallback",
   };

@@ -18,6 +18,8 @@ describe("ruleBasedFallback", () => {
     expect(result.source).toBe("rule_based_fallback");
     expect(result.indicators.has_urgency_pressure).toBe(true);
     expect(result.indicators.requests_payment).toBe(true);
+    expect(result.suspicious_phrases.length).toBeGreaterThan(0);
+    expect(result.suspicious_phrases).toContain("URGENT");
   });
 
   it("flags a bare link with no other signals as low/medium risk phishing", () => {
@@ -31,6 +33,7 @@ describe("ruleBasedFallback", () => {
     const result = ruleBasedFallback("Hello, how are you today?");
     expect(result.risk_level).toBe("low");
     expect(result.reasons[0]).toMatch(/not been reviewed/i);
+    expect(result.suspicious_phrases).toEqual([]);
   });
 });
 

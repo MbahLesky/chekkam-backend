@@ -49,6 +49,13 @@ export async function POST(req: NextRequest) {
     const reportId = inserted.id as string;
     let finalStatus: string = "pending";
 
+    // Links a prior POST /api/ocr/upload result to this report for audit
+    // traceability (evidence.report_id, unset by default). Best-effort: an
+    // unknown/foreign evidence_id is simply a no-op, never a failed report.
+    if (body.evidence_id) {
+      await admin.from("evidence").update({ report_id: reportId }).eq("id", body.evidence_id);
+    }
+
     if (body.content_type === "text" || body.content_type === "link") {
       const analysis = await analyzeContent(body.raw_content ?? "", {
         reportId,
