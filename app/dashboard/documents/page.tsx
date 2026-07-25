@@ -28,6 +28,7 @@ type Document = {
   issued_at: string;
   revoked_at: string | null;
   revocation_reason: string | null;
+  expiry_date: string | null;
 };
 
 const inputClass =
@@ -96,6 +97,19 @@ export default function DocumentsDashboardPage() {
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error?.message ?? "Failed to revoke document.");
+      setSelected(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    }
+  }
+
+  async function restore(id: string) {
+    try {
+      const headers = await authHeaders();
+      const res = await fetch(`/api/documents/${id}/restore`, { method: "POST", headers });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error?.message ?? "Failed to restore document.");
       setSelected(null);
       await load();
     } catch (err) {
@@ -185,7 +199,12 @@ export default function DocumentsDashboardPage() {
 
       {signResult && <SignResultModal result={signResult} onClose={() => setSignResult(null)} />}
       {selected && (
-        <DocumentDetailModal document={selected} onClose={() => setSelected(null)} onRevoke={revoke} />
+        <DocumentDetailModal
+          document={selected}
+          onClose={() => setSelected(null)}
+          onRevoke={revoke}
+          onRestore={restore}
+        />
       )}
     </div>
   );
@@ -202,6 +221,7 @@ function SignDocumentPanel({
   const [institutionId, setInstitutionId] = useState("");
   const [documentType, setDocumentType] = useState("certificate");
   const [recipientName, setRecipientName] = useState("");
+  const [expiryDate, setExpiryDate] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -221,6 +241,7 @@ function SignDocumentPanel({
       form.set("institution_id", institutionId);
       form.set("document_type", documentType);
       form.set("recipient_name", recipientName);
+      if (expiryDate) form.set("expiry_date", expiryDate);
       form.set("file", file);
 
       const res = await fetch("/api/documents/sign", {
@@ -235,6 +256,7 @@ function SignDocumentPanel({
       setOpen(false);
       setInstitutionId("");
       setRecipientName("");
+      setExpiryDate("");
       setFile(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -281,6 +303,15 @@ function SignDocumentPanel({
             <input
               value={recipientName}
               onChange={(e) => setRecipientName(e.target.value)}
+              className={`${inputClass} mt-1`}
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-medium text-chekkam-muted">Expiry date (optional)</span>
+            <input
+              type="date"
+              value={expiryDate}
+              onChange={(e) => setExpiryDate(e.target.value)}
               className={`${inputClass} mt-1`}
             />
           </label>
@@ -361,10 +392,12 @@ function DocumentDetailModal({
   document,
   onClose,
   onRevoke,
+  onRestore,
 }: {
   document: Document;
   onClose: () => void;
   onRevoke: (id: string, reason: string) => void;
+  onRestore: (id: string) => void;
 }) {
   const [reason, setReason] = useState("");
 
@@ -393,13 +426,16 @@ function DocumentDetailModal({
         <Row label="File hash (SHA-256)" value={document.file_hash} mono breakAll />
         <Row label="Signature" value={document.signature} mono breakAll />
         <Row label="Issued" value={new Date(document.issued_at).toLocaleString()} />
+        {document.expiry_date && (
+          <Row label="Expires" value={new Date(document.expiry_date).toLocaleDateString()} />
+        )}
         {document.revoked_at && (
           <Row label="Revoked" value={new Date(document.revoked_at).toLocaleString()} />
         )}
         {document.revocation_reason && <Row label="Revocation reason" value={document.revocation_reason} />}
       </dl>
 
-      {document.status === "active" && (
+      {document.status === "active" ? (
         <div className="mt-5 border-t border-chekkam-border pt-5">
           <label className="block">
             <span className="text-xs font-medium text-chekkam-muted">Reason for revoking</span>
@@ -416,6 +452,15 @@ function DocumentDetailModal({
             className="mt-3 rounded-[var(--radius-chekkam-sm)] bg-status-danger px-4 py-2 text-sm font-semibold text-white shadow-chekkam-sm disabled:opacity-50"
           >
             Revoke document
+          </button>
+        </div>
+      ) : (
+        <div className="mt-5 border-t border-chekkam-border pt-5">
+          <button
+            onClick={() => onRestore(document.id)}
+            className="rounded-[var(--radius-chekkam-sm)] bg-status-success px-4 py-2 text-sm font-semibold text-white shadow-chekkam-sm"
+          >
+            Restore document
           </button>
         </div>
       )}

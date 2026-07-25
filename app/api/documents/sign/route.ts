@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
       institution_id: form.get("institution_id"),
       document_type: form.get("document_type"),
       recipient_name: form.get("recipient_name") || undefined,
+      expiry_date: form.get("expiry_date") || undefined,
     });
 
     await requireInstitutionMember(profile, parsed.institution_id);
@@ -56,6 +57,7 @@ export async function POST(req: NextRequest) {
       recipientName: parsed.recipient_name,
       fileBuffer: Buffer.from(await file.arrayBuffer()),
       actorId: profile.id,
+      expiryDate: parsed.expiry_date ?? null,
     });
 
     return NextResponse.json(result, { status: 201 });
