@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { ValidationError, toErrorResponse } from "@/lib/errors";
+import { pickLang, tt } from "@/lib/i18n";
 import { verifyByUpload, VerifierChannel } from "@/lib/documents/verify";
 
 const RATE_LIMIT = 30;
@@ -17,6 +18,10 @@ const RATE_WINDOW_SECONDS = 10 * 60;
  * the WhatsApp/Telegram bots, so there is exactly one verification path.
  */
 export async function POST(req: NextRequest) {
+  let preferredLang = pickLang(
+    req.nextUrl.searchParams.get("lang"),
+    req.headers.get("accept-language")
+  );
   try {
     const clientIp =
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
@@ -28,7 +33,7 @@ export async function POST(req: NextRequest) {
         {
           error: {
             code: "RATE_LIMITED",
-            message: "Too many verification checks from this network. Please wait a bit and try again.",
+            message: tt("rateLimitedVerify", preferredLang),
           },
         },
         { status: 429 }
@@ -36,9 +41,13 @@ export async function POST(req: NextRequest) {
     }
 
     const form = await req.formData();
+    preferredLang = pickLang(
+      (form.get("language") as string | null) ?? req.nextUrl.searchParams.get("lang"),
+      req.headers.get("accept-language")
+    );
     const file = form.get("file");
     if (!(file instanceof File)) {
-      throw new ValidationError("file is required (multipart/form-data).", "file");
+      throw new ValidationError(tt("fileRequired", preferredLang), "file");
     }
     const verificationIdField = form.get("verification_id");
     const channel = (form.get("channel") as VerifierChannel) || "web";
@@ -53,6 +62,6 @@ export async function POST(req: NextRequest) {
     );
     return NextResponse.json(result);
   } catch (err) {
-    return toErrorResponse(err);
+    return toErrorResponse(err, preferredLang);
   }
 }

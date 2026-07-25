@@ -5,6 +5,7 @@ import { reportCreateSchema } from "@/lib/validation/schemas";
 import { parseBody } from "@/lib/validation/parse";
 import { toErrorResponse } from "@/lib/errors";
 import { analyzeContent } from "@/lib/ai/risk-analysis";
+import { pickLang, tt } from "@/lib/i18n";
 import { extractFingerprint } from "@/lib/campaigns/fingerprint";
 import {
   matchCampaign,
@@ -20,8 +21,13 @@ import {
  * for analyst review since OCR-based analysis is Phase 2 (FR-048).
  */
 export async function POST(req: NextRequest) {
+  let preferredLang = pickLang(req.headers.get("accept-language"));
   try {
     const body = parseBody(reportCreateSchema, await req.json());
+    preferredLang = pickLang(
+      body.language === "unknown" ? null : body.language,
+      req.headers.get("accept-language")
+    );
     const reporterId = await resolveOptionalUserId(req);
     const admin = getSupabaseAdmin();
 
@@ -60,6 +66,7 @@ export async function POST(req: NextRequest) {
       const analysis = await analyzeContent(body.raw_content ?? "", {
         reportId,
         inputType: body.content_type,
+        preferredLanguage: preferredLang,
       });
       const fingerprint = extractFingerprint(body.raw_content ?? "");
 
@@ -104,13 +111,13 @@ export async function POST(req: NextRequest) {
         status: finalStatus,
         message:
           finalStatus === "analyzed"
-            ? "Report analyzed. See GET /api/reports/:id for the full result."
-            : "Report received. Analyzing...",
+            ? tt("reportAnalyzed", preferredLang)
+            : tt("reportReceived", preferredLang),
       },
       { status: 201 }
     );
   } catch (err) {
-    return toErrorResponse(err);
+    return toErrorResponse(err, preferredLang);
   }
 }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { toErrorResponse } from "@/lib/errors";
+import { pickLang, tt } from "@/lib/i18n";
 import { verifyByIdOrPin, VerifierChannel } from "@/lib/documents/verify";
 
 const RATE_LIMIT = 30;
@@ -20,6 +21,10 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ verificationId: string }> }
 ) {
+  const preferredLang = pickLang(
+    req.nextUrl.searchParams.get("lang"),
+    req.headers.get("accept-language")
+  );
   try {
     const clientIp =
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
@@ -31,7 +36,7 @@ export async function GET(
         {
           error: {
             code: "RATE_LIMITED",
-            message: "Too many verification checks from this network. Please wait a bit and try again.",
+            message: tt("rateLimitedVerify", preferredLang),
           },
         },
         { status: 429 }
@@ -44,6 +49,6 @@ export async function GET(
     const result = await verifyByIdOrPin(admin, verificationId, channel);
     return NextResponse.json(result);
   } catch (err) {
-    return toErrorResponse(err);
+    return toErrorResponse(err, preferredLang);
   }
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Lang, tt } from "@/lib/i18n";
 
 /** Thrown when a required env var / external service credential is missing. */
 export class ConfigError extends Error {
@@ -51,7 +52,7 @@ export function jsonError(
  * a 503 with setup guidance rather than a generic 500, since "missing API key"
  * is an expected, recoverable state while the project is being wired up.
  */
-export function toErrorResponse(err: unknown) {
+export function toErrorResponse(err: unknown, lang: Lang = "en") {
   if (err instanceof ConfigError) {
     return jsonError("NOT_CONFIGURED", err.message, 503);
   }
@@ -66,5 +67,5 @@ export function toErrorResponse(err: unknown) {
     );
   }
   console.error(err);
-  return jsonError("INTERNAL_ERROR", "Something went wrong. Please try again.", 500);
+  return jsonError("INTERNAL_ERROR", tt("genericError", lang), 500);
 }
