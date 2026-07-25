@@ -34,6 +34,11 @@ type Document = {
 const inputClass =
   "w-full rounded-[var(--radius-chekkam-sm)] border border-chekkam-border bg-chekkam-tint px-3.5 py-2.5 text-sm text-chekkam-ink outline-none transition focus:border-chekkam-primary focus:bg-chekkam-surface-raised focus:ring-2 focus:ring-chekkam-primary/20";
 
+// Certificate download is restricted to the same roles the API route enforces
+// (institution_officer/admin/super_admin) - this is UI politeness, not the
+// security boundary, which lives server-side in app/api/documents/[id]/certificate.
+const CERTIFICATE_ROLES = new Set(["institution_officer", "admin", "super_admin"]);
+
 export default function DocumentsDashboardPage() {
   const { lang, t } = useI18n();
   const supabase = getSupabaseBrowser();
@@ -42,6 +47,9 @@ export default function DocumentsDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Document | null>(null);
   const [signResult, setSignResult] = useState<SignResult | null>(null);
+  const [role, setRole] = useState<string | null>(null);
+  const [certLoadingId, setCertLoadingId] = useState<string | null>(null);
+  const [certError, setCertError] = useState<string | null>(null);
 
   async function getAccessToken(): Promise<string | undefined> {
     const {
@@ -60,6 +68,56 @@ export default function DocumentsDashboardPage() {
       ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
     };
   }, [supabase, lang]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) return;
+      supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", session.user.id)
+        .single()
+        .then(({ data }) => setRole(data?.role ?? null));
+    });
+  }, [supabase]);
+
+  const canDownloadCertificate = !!role && CERTIFICATE_ROLES.has(role);
+
+  const downloadCertificate = useCallback(
+    async (doc: { id: string; verification_id: string }) => {
+      setCertLoadingId(doc.id);
+      setCertError(null);
+      try {
+        const headers = await authHeaders();
+        const res = await fetch(`/api/documents/${doc.id}/certificate?lang=${lang}`, { headers });
+        if (!res.ok) {
+          let message = t("failedDownloadCertificate");
+          try {
+            const body = await res.json();
+            message = body?.error?.message ?? message;
+          } catch {
+            // non-JSON error body; keep the generic message
+          }
+          throw new Error(message);
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const link = window.document.createElement("a");
+        link.href = url;
+        link.download = `Chekkam-Certificate-${doc.verification_id}.pdf`;
+        window.document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        setCertError(err instanceof Error ? err.message : t("failedDownloadCertificate"));
+      } finally {
+        setCertLoadingId(null);
+      }
+    },
+    [authHeaders, lang, t]
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -121,6 +179,7 @@ export default function DocumentsDashboardPage() {
       </div>
 
       {error && <p className="text-sm text-status-danger">{error}</p>}
+      {certError && <p className="text-sm text-status-danger">{certError}</p>}
       {loading && <p className="text-sm text-chekkam-muted">{t("loading")}</p>}
 
       <div className="overflow-hidden rounded-[var(--radius-chekkam)] border border-chekkam-border bg-chekkam-surface-raised shadow-chekkam-sm">
@@ -156,15 +215,29 @@ export default function DocumentsDashboardPage() {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelected(doc);
-                    }}
-                    className="text-xs font-semibold text-chekkam-primary hover:underline"
-                  >
-                    {t("viewDetails")}
-                  </button>
+                  <div className="flex items-center justify-end gap-3">
+                    {canDownloadCertificate && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          downloadCertificate(doc);
+                        }}
+                        disabled={certLoadingId === doc.id}
+                        className="text-xs font-semibold text-chekkam-primary hover:underline disabled:opacity-50"
+                      >
+                        {certLoadingId === doc.id ? t("preparingCertificate") : t("downloadCertificate")}
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelected(doc);
+                      }}
+                      className="text-xs font-semibold text-chekkam-primary hover:underline"
+                    >
+                      {t("viewDetails")}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -175,7 +248,14 @@ export default function DocumentsDashboardPage() {
         )}
       </div>
 
-      {signResult && <SignResultModal result={signResult} onClose={() => setSignResult(null)} />}
+      {signResult && (
+        <SignResultModal
+          result={signResult}
+          onClose={() => setSignResult(null)}
+          onDownloadCertificate={downloadCertificate}
+          certLoading={certLoadingId === signResult.id}
+        />
+      )}
       {selected && <DocumentDetailModal document={selected} onClose={() => setSelected(null)} onRevoke={revoke} />}
     </div>
   );
@@ -288,7 +368,17 @@ function ModalShell({ onClose, children }: { onClose: () => void; children: Reac
   );
 }
 
-function SignResultModal({ result, onClose }: { result: SignResult; onClose: () => void }) {
+function SignResultModal({
+  result,
+  onClose,
+  onDownloadCertificate,
+  certLoading,
+}: {
+  result: SignResult;
+  onClose: () => void;
+  onDownloadCertificate: (doc: { id: string; verification_id: string }) => void;
+  certLoading: boolean;
+}) {
   const { t } = useI18n();
   return (
     <ModalShell onClose={onClose}>
@@ -304,7 +394,16 @@ function SignResultModal({ result, onClose }: { result: SignResult; onClose: () 
           <dd className="font-[family-name:var(--font-data)] text-base font-medium">{result.pin_code}</dd>
         </dl>
       </div>
-      <button onClick={onClose} className="mt-5 w-full rounded-[var(--radius-chekkam-sm)] border border-chekkam-primary px-4 py-2 text-sm font-semibold text-chekkam-primary">
+      {/* Gate 1: the success state's one clear next action. */}
+      <button
+        onClick={() => onDownloadCertificate(result)}
+        disabled={certLoading}
+        className="mt-5 w-full rounded-[var(--radius-chekkam-sm)] bg-chekkam-primary px-4 py-2 text-sm font-semibold text-white shadow-chekkam-sm disabled:opacity-60"
+      >
+        {certLoading ? t("preparingCertificate") : t("downloadCertificate")}
+      </button>
+      <p className="mt-2 text-center text-xs text-chekkam-faint">{t("certificateHint")}</p>
+      <button onClick={onClose} className="mt-3 w-full rounded-[var(--radius-chekkam-sm)] border border-chekkam-border px-4 py-2 text-sm font-semibold text-chekkam-muted">
         {t("done")}
       </button>
     </ModalShell>
