@@ -128,4 +128,26 @@ describe("verifyByUpload", () => {
     const result = await verifyByUpload(admin as never, Buffer.from("nothing"), null, "web");
     expect(result.status).toBe("not_found");
   });
+
+  it("returns revoked even when the uploaded bytes still match exactly (precedence over genuine)", async () => {
+    const admin = makeAdmin({
+      id: "doc-1",
+      status: "revoked",
+      revoked_at: "2026-02-01T00:00:00Z",
+      revocation_reason: "Superseded",
+      expiry_date: null,
+      file_hash: fileHash,
+      signature: validSignature,
+      document_type: "certificate",
+      institutions: { name: "Test University", signing_public_key: publicKey },
+    });
+    const result = await verifyByUpload(
+      admin as never,
+      Buffer.from("doc content"),
+      "CHK-XXXX-XXXX",
+      "web"
+    );
+    expect(result.status).toBe("revoked");
+    expect(result.reason).toBe("Superseded");
+  });
 });

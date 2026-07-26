@@ -8,8 +8,8 @@
     "start": "npm run db:migrate && npm run db:seed && next start",
     "db:migrate": "node scripts/migrate.mjs",
     "db:seed": "tsx scripts/seed.ts",
-    "lint": "eslint",
     "test": "vitest run",
+    "lint": "eslint",
     "generate-signing-key": "node scripts/generate-signing-key.mjs",
     "issue-api-key": "node scripts/issue-api-key.mjs",
     "set-telegram-webhook": "node scripts/set-telegram-webhook.mjs"
@@ -25,6 +25,7 @@
     "next": "16.2.10",
     "pdf-parse": "^1.1.4",
     "pdfjs-dist": "^4.10.38",
+    "pdf-lib": "^1.17.1",
     "pg": "^8.13.1",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
