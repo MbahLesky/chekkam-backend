@@ -182,7 +182,7 @@ describe("generateCertificatePdf", () => {
     };
     const bytes = await generateCertificatePdf(expired);
     const loaded = await PDFDocument.load(bytes);
-    assert.equal(loaded.getPageCount(), 1);
+    expect(loaded.getPageCount()).toBe(1);
   });
 
   test("does not throw when recipient_name and pin_code are absent", async () => {
