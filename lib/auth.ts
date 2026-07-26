@@ -1,3 +1,4 @@
+import { SupabaseClient } from "@supabase/supabase-js";
 import { bearerTokenFrom } from "@/lib/supabase/client";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { AuthError } from "@/lib/errors";
@@ -52,13 +53,18 @@ export function requireRole(profile: AuthedProfile, roles: Role[]) {
   }
 }
 
-/** Returns the profile for an institution_officer if they belong to `institutionId`. */
+/**
+ * Throws unless `profile` is an admin/super_admin or an institution_officer
+ * belonging to `institutionId`. Accepts an optional Supabase client (defaults
+ * to the real admin client) so callers/tests can inject a fake one.
+ */
 export async function requireInstitutionMember(
   profile: AuthedProfile,
-  institutionId: string
+  institutionId: string,
+  client?: SupabaseClient
 ) {
   if (profile.role === "admin" || profile.role === "super_admin") return;
-  const admin = getSupabaseAdmin();
+  const admin = client ?? getSupabaseAdmin();
   const { data } = await admin
     .from("institution_members")
     .select("id")

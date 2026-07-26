@@ -1,9 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { ruleBasedFallback } from "@/lib/ai/risk-analysis";
 
-const logAiPrediction = vi.fn(async () => {});
+const { logAiPrediction } = vi.hoisted(() => ({
+  logAiPrediction: vi.fn<(entry: Record<string, unknown>) => Promise<void>>(async () => {}),
+}));
 vi.mock("@/lib/ai/predictions", () => ({
-  logAiPrediction: (...args: unknown[]) => logAiPrediction(...args),
+  logAiPrediction,
 }));
 
 describe("ruleBasedFallback", () => {

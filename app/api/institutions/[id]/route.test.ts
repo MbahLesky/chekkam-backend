@@ -7,8 +7,8 @@ const requireRole = vi.fn((profile: { role: string }, roles: string[]) => {
   if (!roles.includes(profile.role)) throw new AuthError("Forbidden", 403);
 });
 vi.mock("@/lib/auth", () => ({
-  requireUser: (...args: unknown[]) => requireUser(...args),
-  requireRole: (...args: unknown[]) => requireRole(...args),
+  requireUser,
+  requireRole,
 }));
 
 const fromMock = vi.fn();
