@@ -1,29 +1,30 @@
 @import "tailwindcss";
 
 :root {
-  /* Chekkam brand tokens v2 — deepened lagoon teal + one sparing gold accent.
-     See Chekkam_Brand_Guide.md for rationale. */
-  --chekkam-lagoon: #073f3a; /* deepest teal — hero/dark surfaces */
-  --chekkam-primary: #0e6c61; /* primary actions, links */
-  --chekkam-bright: #2fb69c; /* hover/active/gradient highlight */
-  --chekkam-gold: #c98a22; /* sparing warm accent — one per screen */
+  /* Chekkam brand tokens v3 — bold red/maroon/ink identity.
+     See Chekkam_Brand_Guide.md for rationale. Token names (lagoon/bright)
+     are kept from v2 for continuity across the codebase; their values now
+     point at the red palette instead of teal. */
+  --chekkam-lagoon: #68020f; /* deep maroon — hero/dark surfaces, danger status */
+  --chekkam-primary: #f21137; /* primary actions, links */
+  --chekkam-bright: #ff3355; /* hover/active/gradient highlight */
 
-  --chekkam-ink: #0f211d;
-  --chekkam-muted: #4c5e57;
-  --chekkam-faint: #7c8c86;
-  --chekkam-surface: #fafaf7; /* page background */
+  --chekkam-ink: #030303;
+  --chekkam-muted: #4a4a4a;
+  --chekkam-faint: #8a8080;
+  --chekkam-surface: #fffffe; /* page background */
   --chekkam-surface-raised: #ffffff; /* card fill */
-  --chekkam-tint: #eff4f1; /* recessed sections / fields */
-  --chekkam-border: #dee7e2;
+  --chekkam-tint: #f7f1f1; /* recessed sections / fields */
+  --chekkam-border: #e8dede;
 
   --status-success: #1e8e5a;
   --status-warning: #b5690f;
-  --status-danger: #c4392a;
-  --status-neutral: #7c8c86;
+  --status-danger: #68020f;
+  --status-neutral: #7c7272;
 
-  --shadow-sm: 0 1px 2px rgba(7, 30, 27, 0.06);
-  --shadow-md: 0 8px 24px rgba(7, 30, 27, 0.09), 0 2px 6px rgba(7, 30, 27, 0.05);
-  --shadow-lg: 0 24px 60px rgba(7, 30, 27, 0.16), 0 8px 20px rgba(7, 30, 27, 0.07);
+  --shadow-sm: 0 1px 2px rgba(3, 3, 3, 0.06);
+  --shadow-md: 0 8px 24px rgba(3, 3, 3, 0.10), 0 2px 6px rgba(3, 3, 3, 0.06);
+  --shadow-lg: 0 24px 60px rgba(3, 3, 3, 0.18), 0 8px 20px rgba(3, 3, 3, 0.08);
 
   --background: var(--chekkam-surface);
   --foreground: var(--chekkam-ink);
@@ -31,21 +32,20 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --chekkam-lagoon: #0a2b27;
-    --chekkam-primary: #45d2b7;
-    --chekkam-bright: #6ee7cb;
-    --chekkam-gold: #f0ba57;
-    --chekkam-ink: #eaf3ef;
-    --chekkam-muted: #a9bdb6;
-    --chekkam-faint: #71857e;
-    --chekkam-surface: #081512;
-    --chekkam-surface-raised: #0e211d;
-    --chekkam-tint: #0b1b17;
-    --chekkam-border: #1d3833;
+    --chekkam-lagoon: #4a0209;
+    --chekkam-primary: #ff3b5c;
+    --chekkam-bright: #ff6b85;
+    --chekkam-ink: #fffffe;
+    --chekkam-muted: #c9c0c0;
+    --chekkam-faint: #8a8080;
+    --chekkam-surface: #030303;
+    --chekkam-surface-raised: #141010;
+    --chekkam-tint: #1f1414;
+    --chekkam-border: #3a2626;
     --status-success: #3fbe85;
     --status-warning: #e2a33f;
-    --status-danger: #f0685a;
-    --status-neutral: #7c8c86;
+    --status-danger: #ff5c6e;
+    --status-neutral: #9a8f8f;
   }
 }
 
@@ -55,7 +55,6 @@
   --color-chekkam-lagoon: var(--chekkam-lagoon);
   --color-chekkam-primary: var(--chekkam-primary);
   --color-chekkam-bright: var(--chekkam-bright);
-  --color-chekkam-gold: var(--chekkam-gold);
   --color-chekkam-ink: var(--chekkam-ink);
   --color-chekkam-muted: var(--chekkam-muted);
   --color-chekkam-faint: var(--chekkam-faint);
@@ -81,7 +80,7 @@ body {
   font-family: var(--font-body);
 }
 
-/* Soft shadow utilities — used instead of hard borders for depth (v2 direction). */
+/* Soft shadow utilities — used instead of hard borders for depth. */
 .shadow-chekkam-sm { box-shadow: var(--shadow-sm); }
 .shadow-chekkam-md { box-shadow: var(--shadow-md); }
 .shadow-chekkam-lg { box-shadow: var(--shadow-lg); }
@@ -90,5 +89,5 @@ body {
   background-image: linear-gradient(135deg, var(--chekkam-lagoon), var(--chekkam-primary));
 }
 .bg-gradient-seal {
-  background-image: linear-gradient(135deg, var(--chekkam-bright), var(--chekkam-gold));
+  background-image: linear-gradient(135deg, var(--chekkam-primary), var(--chekkam-ink));
 }

@@ -58,6 +58,11 @@ export function verifyReply(result: VerifyResult, lang: Lang = "en"): string {
       fr: `⛔ *Révoqué.* Ce document a été retiré par l'institution émettrice.${result.reason ? ` Raison : ${result.reason}.` : ""}`,
       pidgin: `⛔ *Dem cancel am.* Di institution wey issue dis document don withdraw am.${result.reason ? ` Reason: ${result.reason}.` : ""}`,
     },
+    expired: {
+      en: `⏳ *Expired.* This document's validity period has ended.${result.expiry_date ? ` It expired on ${result.expiry_date}.` : ""} Contact ${institution} if you need a current one.`,
+      fr: `⏳ *Expiré.* La période de validité de ce document est terminée.${result.expiry_date ? ` Il a expiré le ${result.expiry_date}.` : ""} Contactez ${institution} si vous avez besoin d'un document à jour.`,
+      pidgin: `⏳ *E don expire.* Dis document validity don finish.${result.expiry_date ? ` E expire on ${result.expiry_date}.` : ""} Contact ${institution} if you need one wey still dey valid.`,
+    },
     not_found: {
       en: `❓ *Not found.* No document matches what you sent. Double-check the ID/PIN or contact the issuing institution.`,
       fr: `❓ *Introuvable.* Aucun document ne correspond à ce que vous avez envoyé. Vérifiez l'ID/PIN ou contactez l'institution émettrice.`,

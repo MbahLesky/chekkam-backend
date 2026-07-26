@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useI18n } from "@/components/i18n-provider";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 type PublicAlert = {
@@ -27,13 +28,8 @@ const SEVERITY_COLOR: Record<string, string> = {
   critical: "bg-status-danger/12 text-status-danger",
 };
 
-/**
- * Public alerts management (Phase 2 §7.3, §7.5). Create a draft, edit it,
- * then publish — the final, deliberate human-approval step before anything
- * reaches citizens. Drafts and Published are shown as separate sections so
- * it's always obvious what's actually live.
- */
 export default function PublicAlertsAdminPage() {
+  const { lang, t } = useI18n();
   const supabase = getSupabaseBrowser();
   const searchParams = useSearchParams();
   const highlightId = searchParams.get("highlight");
@@ -54,35 +50,35 @@ export default function PublicAlertsAdminPage() {
     related_campaign_id: "",
   });
 
-  async function authHeaders() {
+  const authHeaders = useCallback(async () => {
     const {
       data: { session },
     } = (await supabase?.auth.getSession()) ?? { data: { session: null } };
     return {
       "Content-Type": "application/json",
+      "Accept-Language": lang,
       ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
     };
-  }
+  }, [supabase, lang]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const headers = await authHeaders();
-      const res = await fetch("/api/public-alerts?scope=drafts", { headers });
+      const res = await fetch(`/api/public-alerts?scope=drafts&lang=${lang}`, { headers });
       const body = await res.json();
-      if (!res.ok) throw new Error(body?.error?.message ?? "Failed to load alerts.");
+      if (!res.ok) throw new Error(body?.error?.message ?? t("failedLoadAlerts"));
       setAlerts(body.alerts as PublicAlert[]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(err instanceof Error ? err.message : t("somethingWrong"));
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase]);
+  }, [authHeaders, lang, t]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional fetch-on-mount
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional fetch-on-mount/language-change
     load();
   }, [load]);
 
@@ -112,12 +108,12 @@ export default function PublicAlertsAdminPage() {
         }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body?.error?.message ?? "Failed to create alert.");
+      if (!res.ok) throw new Error(body?.error?.message ?? t("somethingWrong"));
       setNewAlert({ title: "", body: "", alert_type: "scam_campaign", severity: "warning", related_campaign_id: "" });
       setShowCreate(false);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(err instanceof Error ? err.message : t("somethingWrong"));
     } finally {
       setCreating(false);
     }
@@ -135,7 +131,7 @@ export default function PublicAlertsAdminPage() {
         body: JSON.stringify(changes),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body?.error?.message ?? "Failed to save changes.");
+      if (!res.ok) throw new Error(body?.error?.message ?? t("somethingWrong"));
       setEditing((prev) => {
         const next = { ...prev };
         delete next[alert.id];
@@ -143,7 +139,7 @@ export default function PublicAlertsAdminPage() {
       });
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(err instanceof Error ? err.message : t("somethingWrong"));
     } finally {
       setBusyId(null);
     }
@@ -155,10 +151,10 @@ export default function PublicAlertsAdminPage() {
       const headers = await authHeaders();
       const res = await fetch(`/api/public-alerts/${alertId}/publish`, { method: "POST", headers });
       const body = await res.json();
-      if (!res.ok) throw new Error(body?.error?.message ?? "Failed to publish.");
+      if (!res.ok) throw new Error(body?.error?.message ?? t("somethingWrong"));
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(err instanceof Error ? err.message : t("somethingWrong"));
     } finally {
       setBusyId(null);
     }
@@ -172,100 +168,67 @@ export default function PublicAlertsAdminPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="text-xs font-semibold uppercase tracking-wider text-chekkam-primary">
-            Human approval gate
+            {t("humanApprovalGate")}
           </div>
           <h1 className="mt-1 font-[family-name:var(--font-heading)] text-2xl font-semibold text-chekkam-ink">
-            Public alerts
+            {t("publicAlerts")}
           </h1>
-          <p className="mt-1 text-sm text-chekkam-muted">
-            Nothing here reaches citizens until you press Publish.
-          </p>
+          <p className="mt-1 text-sm text-chekkam-muted">{t("publicAlertsAdminIntro")}</p>
         </div>
         <button
           onClick={() => setShowCreate((v) => !v)}
           className="shrink-0 rounded-[var(--radius-chekkam-sm)] bg-gradient-lagoon px-4 py-2 text-sm font-semibold text-white shadow-chekkam-sm"
         >
-          {showCreate ? "Cancel" : "Create new alert"}
+          {showCreate ? t("cancel") : t("createNewAlert")}
         </button>
       </div>
 
       {showCreate && (
-        <form
-          onSubmit={createAlert}
-          className="flex flex-col gap-3 rounded-[var(--radius-chekkam)] border border-chekkam-border bg-chekkam-surface-raised p-5 shadow-chekkam-sm"
-        >
+        <form onSubmit={createAlert} className="flex flex-col gap-3 rounded-[var(--radius-chekkam)] border border-chekkam-border bg-chekkam-surface-raised p-5 shadow-chekkam-sm">
           <label className="block">
-            <span className="text-xs font-medium text-chekkam-muted">Title</span>
-            <input
-              required
-              value={newAlert.title}
-              onChange={(e) => setNewAlert((a) => ({ ...a, title: e.target.value }))}
-              className={inputClass}
-            />
+            <span className="text-xs font-medium text-chekkam-muted">{t("title")}</span>
+            <input required value={newAlert.title} onChange={(e) => setNewAlert((a) => ({ ...a, title: e.target.value }))} className={inputClass} />
           </label>
           <label className="block">
-            <span className="text-xs font-medium text-chekkam-muted">Body</span>
-            <textarea
-              required
-              rows={3}
-              value={newAlert.body}
-              onChange={(e) => setNewAlert((a) => ({ ...a, body: e.target.value }))}
-              className={inputClass}
-            />
+            <span className="text-xs font-medium text-chekkam-muted">{t("body")}</span>
+            <textarea required rows={3} value={newAlert.body} onChange={(e) => setNewAlert((a) => ({ ...a, body: e.target.value }))} className={inputClass} />
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className="text-xs font-medium text-chekkam-muted">Alert type</span>
-              <select
-                value={newAlert.alert_type}
-                onChange={(e) => setNewAlert((a) => ({ ...a, alert_type: e.target.value }))}
-                className={inputClass}
-              >
-                {ALERT_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
+              <span className="text-xs font-medium text-chekkam-muted">{t("alertType")}</span>
+              <select value={newAlert.alert_type} onChange={(e) => setNewAlert((a) => ({ ...a, alert_type: e.target.value }))} className={inputClass}>
+                {ALERT_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
                   </option>
                 ))}
               </select>
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-chekkam-muted">Severity</span>
-              <select
-                value={newAlert.severity}
-                onChange={(e) => setNewAlert((a) => ({ ...a, severity: e.target.value }))}
-                className={inputClass}
-              >
-                {SEVERITIES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
+              <span className="text-xs font-medium text-chekkam-muted">{t("severity")}</span>
+              <select value={newAlert.severity} onChange={(e) => setNewAlert((a) => ({ ...a, severity: e.target.value }))} className={inputClass}>
+                {SEVERITIES.map((severity) => (
+                  <option key={severity} value={severity}>
+                    {severity}
                   </option>
                 ))}
               </select>
             </label>
           </div>
           <label className="block">
-            <span className="text-xs font-medium text-chekkam-muted">Related campaign ID (optional)</span>
-            <input
-              value={newAlert.related_campaign_id}
-              onChange={(e) => setNewAlert((a) => ({ ...a, related_campaign_id: e.target.value }))}
-              placeholder="uuid"
-              className={`${inputClass} font-[family-name:var(--font-data)]`}
-            />
+            <span className="text-xs font-medium text-chekkam-muted">{t("relatedCampaignOptional")}</span>
+            <input value={newAlert.related_campaign_id} onChange={(e) => setNewAlert((a) => ({ ...a, related_campaign_id: e.target.value }))} placeholder="uuid" className={`${inputClass} font-[family-name:var(--font-data)]`} />
           </label>
-          <button
-            type="submit"
-            disabled={creating}
-            className="mt-1 self-start rounded-[var(--radius-chekkam-sm)] bg-chekkam-primary px-4 py-2 text-sm font-semibold text-white shadow-chekkam-sm disabled:opacity-60"
-          >
-            {creating ? "Creating…" : "Create draft"}
+          <button type="submit" disabled={creating} className="mt-1 self-start rounded-[var(--radius-chekkam-sm)] bg-chekkam-primary px-4 py-2 text-sm font-semibold text-white shadow-chekkam-sm disabled:opacity-60">
+            {creating ? t("creating") : t("createDraft")}
           </button>
         </form>
       )}
 
       {error && <p className="text-sm text-status-danger">{error}</p>}
-      {loading && <p className="text-sm text-chekkam-muted">Loading…</p>}
+      {loading && <p className="text-sm text-chekkam-muted">{t("loading")}</p>}
 
-      <Section title="Drafts" count={drafts.length}>
+      <Section title={t("drafts")} count={drafts.length}>
         {drafts.map((alert) => (
           <AlertCard
             key={alert.id}
@@ -279,14 +242,10 @@ export default function PublicAlertsAdminPage() {
             hasEdits={!!editing[alert.id]}
           />
         ))}
-        {!loading && drafts.length === 0 && (
-          <p className="text-sm text-chekkam-muted">
-            No drafts — create one above, or promote a report from the review queue.
-          </p>
-        )}
+        {!loading && drafts.length === 0 && <p className="text-sm text-chekkam-muted">{t("noDrafts")}</p>}
       </Section>
 
-      <Section title="Published" count={published.length}>
+      <Section title={t("published")} count={published.length}>
         {published.map((alert) => (
           <AlertCard
             key={alert.id}
@@ -300,32 +259,18 @@ export default function PublicAlertsAdminPage() {
             hasEdits={false}
           />
         ))}
-        {!loading && published.length === 0 && (
-          <p className="text-sm text-chekkam-muted">Nothing published yet.</p>
-        )}
+        {!loading && published.length === 0 && <p className="text-sm text-chekkam-muted">{t("nothingPublished")}</p>}
       </Section>
     </div>
   );
 }
 
-function Section({
-  title,
-  count,
-  children,
-}: {
-  title: string;
-  count: number;
-  children: React.ReactNode;
-}) {
+function Section({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <h2 className="font-[family-name:var(--font-heading)] text-lg font-semibold text-chekkam-ink">
-          {title}
-        </h2>
-        <span className="rounded-full bg-chekkam-tint px-2 py-0.5 text-xs font-semibold text-chekkam-muted">
-          {count}
-        </span>
+        <h2 className="font-[family-name:var(--font-heading)] text-lg font-semibold text-chekkam-ink">{title}</h2>
+        <span className="rounded-full bg-chekkam-tint px-2 py-0.5 text-xs font-semibold text-chekkam-muted">{count}</span>
       </div>
       <div className="flex flex-col gap-4">{children}</div>
     </div>
@@ -351,21 +296,15 @@ function AlertCard({
   busy: boolean;
   hasEdits: boolean;
 }) {
+  const { lang, t } = useI18n();
+
   return (
-    <div
-      className={`rounded-[var(--radius-chekkam)] border bg-chekkam-surface-raised p-5 shadow-chekkam-sm ${
-        highlighted ? "border-chekkam-primary ring-2 ring-chekkam-primary/15" : "border-chekkam-border"
-      }`}
-    >
+    <div className={`rounded-[var(--radius-chekkam)] border bg-chekkam-surface-raised p-5 shadow-chekkam-sm ${highlighted ? "border-chekkam-primary ring-2 ring-chekkam-primary/15" : "border-chekkam-border"}`}>
       <div className="mb-3 flex items-center gap-2">
-        <span
-          className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-            alert.published
-              ? "bg-status-success/12 text-status-success"
-              : "bg-status-neutral/12 text-status-neutral"
-          }`}
-        >
-          {alert.published ? `Published ${alert.published_at ? new Date(alert.published_at).toLocaleDateString() : ""}` : "Draft"}
+        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${alert.published ? "bg-status-success/12 text-status-success" : "bg-status-neutral/12 text-status-neutral"}`}>
+          {alert.published
+            ? `${t("published")} ${alert.published_at ? new Date(alert.published_at).toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US") : ""}`
+            : t("draft")}
         </span>
         <span className="text-xs text-chekkam-faint">{alert.alert_type}</span>
         <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${SEVERITY_COLOR[alert.severity] ?? "bg-status-neutral/12 text-status-neutral"}`}>
@@ -374,41 +313,22 @@ function AlertCard({
       </div>
 
       <label className="mb-3 block">
-        <span className="text-xs font-medium text-chekkam-muted">Title</span>
-        <input
-          value={field(alert, "title")}
-          onChange={(e) => setField(alert.id, "title", e.target.value)}
-          disabled={alert.published}
-          className={inputClass}
-        />
+        <span className="text-xs font-medium text-chekkam-muted">{t("title")}</span>
+        <input value={field(alert, "title")} onChange={(e) => setField(alert.id, "title", e.target.value)} disabled={alert.published} className={inputClass} />
       </label>
 
       <label className="mb-4 block">
-        <span className="text-xs font-medium text-chekkam-muted">Body</span>
-        <textarea
-          value={field(alert, "body")}
-          onChange={(e) => setField(alert.id, "body", e.target.value)}
-          disabled={alert.published}
-          rows={3}
-          className={inputClass}
-        />
+        <span className="text-xs font-medium text-chekkam-muted">{t("body")}</span>
+        <textarea value={field(alert, "body")} onChange={(e) => setField(alert.id, "body", e.target.value)} disabled={alert.published} rows={3} className={inputClass} />
       </label>
 
       {!alert.published && (
         <div className="flex gap-2">
-          <button
-            onClick={() => onSave(alert)}
-            disabled={busy || !hasEdits}
-            className="rounded-[var(--radius-chekkam-sm)] border border-chekkam-primary px-3.5 py-1.5 text-xs font-semibold text-chekkam-primary disabled:opacity-50"
-          >
-            Save changes
+          <button onClick={() => onSave(alert)} disabled={busy || !hasEdits} className="rounded-[var(--radius-chekkam-sm)] border border-chekkam-primary px-3.5 py-1.5 text-xs font-semibold text-chekkam-primary disabled:opacity-50">
+            {t("saveChanges")}
           </button>
-          <button
-            onClick={() => onPublish(alert.id)}
-            disabled={busy}
-            className="rounded-[var(--radius-chekkam-sm)] bg-gradient-lagoon px-3.5 py-1.5 text-xs font-semibold text-white shadow-chekkam-sm disabled:opacity-60"
-          >
-            {busy ? "Publishing…" : "Publish"}
+          <button onClick={() => onPublish(alert.id)} disabled={busy} className="rounded-[var(--radius-chekkam-sm)] bg-gradient-lagoon px-3.5 py-1.5 text-xs font-semibold text-white shadow-chekkam-sm disabled:opacity-60">
+            {busy ? t("publishing") : t("publish")}
           </button>
         </div>
       )}

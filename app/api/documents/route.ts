@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     let query = admin
       .from("documents")
       .select(
-        "id, institution_id, document_type, recipient_name, status, file_hash, signature, verification_id, pin_code, qr_payload, issued_at, revoked_at, revocation_reason, institutions(name)"
+        "id, institution_id, document_type, recipient_name, status, file_hash, signature, verification_id, pin_code, qr_payload, issued_at, revoked_at, revocation_reason, expiry_date, institutions(name)"
       )
       .order("created_at", { ascending: false })
       .limit(200);
@@ -55,6 +55,7 @@ export async function GET(req: NextRequest) {
         issued_at: doc.issued_at,
         revoked_at: doc.revoked_at,
         revocation_reason: doc.revocation_reason,
+        expiry_date: doc.expiry_date,
       };
     });
 

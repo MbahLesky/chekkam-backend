@@ -5,8 +5,13 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import { AuthShell } from "@/components/auth-shell";
+import { useI18n } from "@/components/i18n-provider";
+
+const DEMO_ADMIN_EMAIL = "admin@chekkam.demo";
+const DEMO_ADMIN_PASSWORD = "ChekkamDemo123!";
 
 export default function LoginPage() {
+  const { t } = useI18n();
   const router = useRouter();
   const supabase = getSupabaseBrowser();
   const [email, setEmail] = useState("");
@@ -16,11 +21,9 @@ export default function LoginPage() {
 
   if (!supabase) {
     return (
-      <AuthShell eyebrow="Setup needed" title="Supabase isn't configured yet">
+      <AuthShell eyebrow={t("setupNeeded")} title={t("supabaseMissingTitle")}>
         <p className="text-sm text-chekkam-muted">
-          Set <code className="font-[family-name:var(--font-data)] text-xs">NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
-          <code className="font-[family-name:var(--font-data)] text-xs">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in{" "}
-          <code className="font-[family-name:var(--font-data)] text-xs">.env.local</code>, then restart the dev server.
+          {t("supabaseMissingBody")}
         </p>
       </AuthShell>
     );
@@ -41,10 +44,10 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthShell eyebrow="Staff access" title="Sign in to Chekkam" subtitle="For analysts, institution officers, and admins.">
+    <AuthShell eyebrow={t("staffAccess")} title={t("signInTitle")} subtitle={t("signInSubtitle")}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium text-chekkam-ink">Email</span>
+          <span className="text-sm font-medium text-chekkam-ink">{t("email")}</span>
           <input
             type="email"
             required
@@ -55,7 +58,7 @@ export default function LoginPage() {
         </label>
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium text-chekkam-ink">Password</span>
+          <span className="text-sm font-medium text-chekkam-ink">{t("password")}</span>
           <input
             type="password"
             required
@@ -72,13 +75,33 @@ export default function LoginPage() {
           disabled={loading}
           className="mt-2 w-full rounded-[var(--radius-chekkam-sm)] bg-gradient-lagoon px-4 py-2.5 text-sm font-semibold text-white shadow-chekkam-sm transition hover:brightness-110 disabled:opacity-60"
         >
-          {loading ? "Signing in…" : "Sign in"}
+          {loading ? t("signingIn") : t("signIn")}
         </button>
 
         <Link href="/signup" className="text-center text-sm font-medium text-chekkam-muted hover:text-chekkam-primary">
-          Register your institution
+          {t("registerInstitution")}
         </Link>
       </form>
+
+      <div className="mt-5 rounded-[var(--radius-chekkam-sm)] border border-dashed border-chekkam-border bg-chekkam-tint p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-chekkam-faint">
+          {t("prototypeOpen")}
+        </p>
+        <p className="mt-1.5 text-xs text-chekkam-muted">{t("prototypeBody")}</p>
+        <p className="mt-2 font-[family-name:var(--font-data)] text-xs text-chekkam-ink">
+          {DEMO_ADMIN_EMAIL} / {DEMO_ADMIN_PASSWORD}
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            setEmail(DEMO_ADMIN_EMAIL);
+            setPassword(DEMO_ADMIN_PASSWORD);
+          }}
+          className="mt-2 text-xs font-semibold text-chekkam-primary hover:underline"
+        >
+          {t("fillDemo")}
+        </button>
+      </div>
     </AuthShell>
   );
 }

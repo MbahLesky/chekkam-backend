@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { institutionSignupSchema } from "@/lib/validation/schemas";
 import { parseBody } from "@/lib/validation/parse";
 import { ValidationError, toErrorResponse } from "@/lib/errors";
+import { pickLang, tt } from "@/lib/i18n";
 
 /**
  * POST /api/auth/signup — self-serve institution onboarding.
@@ -16,6 +17,7 @@ import { ValidationError, toErrorResponse } from "@/lib/errors";
  * even though registering the record itself is self-serve.
  */
 export async function POST(req: NextRequest) {
+  const preferredLang = pickLang(req.headers.get("accept-language"));
   try {
     const body = parseBody(institutionSignupSchema, await req.json());
     const admin = getSupabaseAdmin();
@@ -69,13 +71,11 @@ export async function POST(req: NextRequest) {
       {
         id: institution.id,
         status: institution.status,
-        message:
-          "Your institution has been registered and is pending review. An administrator " +
-          "will contact you to activate document-signing.",
+        message: tt("signupSuccess", preferredLang),
       },
       { status: 201 }
     );
   } catch (err) {
-    return toErrorResponse(err);
+    return toErrorResponse(err, preferredLang);
   }
 }

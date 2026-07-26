@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { hashDocument } from "@/lib/crypto/sign";
+import { verifySignature } from "@/lib/crypto/verify";
 
 /**
  * The one and only document verification path (SRS 10.2). Extracted from
@@ -11,15 +12,41 @@ import { hashDocument } from "@/lib/crypto/sign";
 export type VerifierChannel = "mobile" | "web" | "api" | "whatsapp" | "telegram" | "extension";
 
 export type VerifyResult = {
-  status: "genuine" | "tampered" | "revoked" | "not_found";
+  status: "genuine" | "tampered" | "revoked" | "expired" | "not_found";
   institution?: string | null;
   document_type?: string;
   recipient_name?: string | null;
   verification_id?: string;
   issued_at?: string;
   revoked_at?: string;
+  expiry_date?: string | null;
   reason?: string | null;
 };
+
+const TAMPERED_CONTENT_REASON =
+  "The submitted file's content does not match what the issuing institution originally signed.";
+const TAMPERED_SIGNATURE_REASON =
+  "This record's digital signature does not match the issuing institution's key. It may not be genuine.";
+
+function isExpired(expiryDate: string | null | undefined): boolean {
+  return !!expiryDate && new Date(expiryDate) < new Date();
+}
+
+/**
+ * Re-validates the stored ECDSA signature against the institution's public
+ * key, catching a DB record forged without ever holding the institution's
+ * private key (hash comparison alone can't detect this). Graceful by
+ * design: a missing signature/public key (e.g. a pre-signature-check record)
+ * is not treated as tampering — there's nothing to check against.
+ */
+function hasValidStoredSignature(
+  fileHash: string | null | undefined,
+  signature: string | null | undefined,
+  publicKey: string | null | undefined
+): boolean {
+  if (!fileHash || !signature || !publicKey) return true;
+  return verifySignature(fileHash, signature, publicKey);
+}
 
 async function logAttempt(
   admin: SupabaseClient,
@@ -36,7 +63,12 @@ async function logAttempt(
   });
 }
 
-/** Look up by verification ID or PIN — no file to compare, so no tamper detection (SRS 10.2 steps 1-3). */
+/**
+ * Look up by verification ID or PIN. No uploaded file, so content-tamper
+ * detection isn't possible — but the stored hash+signature pair is still
+ * re-validated against the institution's public key (SRS 10.2 steps 1-3,
+ * extended with signature re-validation).
+ */
 export async function verifyByIdOrPin(
   admin: SupabaseClient,
   verificationId: string,
@@ -45,7 +77,7 @@ export async function verifyByIdOrPin(
   const { data: doc } = await admin
     .from("documents")
     .select(
-      "id, document_type, recipient_name, status, issued_at, revoked_at, revocation_reason, institutions(name)"
+      "id, document_type, recipient_name, status, issued_at, revoked_at, revocation_reason, expiry_date, file_hash, signature, institutions(name, signing_public_key)"
     )
     .or(`verification_id.eq.${verificationId},pin_code.eq.${verificationId}`)
     .maybeSingle();
@@ -66,6 +98,29 @@ export async function verifyByIdOrPin(
       verification_id: verificationId,
       revoked_at: doc.revoked_at,
       reason: doc.revocation_reason,
+    };
+  }
+
+  if (isExpired(doc.expiry_date)) {
+    await logAttempt(admin, doc.id, verificationId, "expired", channel);
+    return {
+      status: "expired",
+      institution: institution?.name ?? null,
+      document_type: doc.document_type,
+      verification_id: verificationId,
+      expiry_date: doc.expiry_date,
+      reason: `This document's validity period ended on ${doc.expiry_date}.`,
+    };
+  }
+
+  if (!hasValidStoredSignature(doc.file_hash, doc.signature, institution?.signing_public_key)) {
+    await logAttempt(admin, doc.id, verificationId, "tampered", channel);
+    return {
+      status: "tampered",
+      institution: institution?.name ?? null,
+      document_type: doc.document_type,
+      verification_id: verificationId,
+      reason: TAMPERED_SIGNATURE_REASON,
     };
   }
 
@@ -97,7 +152,7 @@ export async function verifyByUpload(
     const { data: doc } = await admin
       .from("documents")
       .select(
-        "id, file_hash, document_type, recipient_name, status, revoked_at, revocation_reason, institutions(name)"
+        "id, file_hash, signature, document_type, recipient_name, status, revoked_at, revocation_reason, expiry_date, institutions(name, signing_public_key)"
       )
       .or(`verification_id.eq.${verificationId},pin_code.eq.${verificationId}`)
       .maybeSingle();
@@ -120,21 +175,46 @@ export async function verifyByUpload(
       };
     }
 
-    const matches = doc.file_hash === computedHash;
-    await logAttempt(admin, doc.id, verificationId, matches ? "genuine" : "tampered", channel);
+    if (isExpired(doc.expiry_date)) {
+      await logAttempt(admin, doc.id, verificationId, "expired", channel);
+      return {
+        status: "expired",
+        institution: institution?.name ?? null,
+        document_type: doc.document_type,
+        verification_id: verificationId,
+        expiry_date: doc.expiry_date,
+        reason: `This document's validity period ended on ${doc.expiry_date}.`,
+      };
+    }
+
+    const hashMatches = doc.file_hash === computedHash;
+    const signatureValid = hasValidStoredSignature(
+      doc.file_hash,
+      doc.signature,
+      institution?.signing_public_key
+    );
+    const genuine = hashMatches && signatureValid;
+    await logAttempt(admin, doc.id, verificationId, genuine ? "genuine" : "tampered", channel);
     return {
-      status: matches ? "genuine" : "tampered",
+      status: genuine ? "genuine" : "tampered",
       institution: institution?.name ?? null,
       document_type: doc.document_type,
       recipient_name: doc.recipient_name,
       verification_id: verificationId,
+      reason: genuine
+        ? undefined
+        : hashMatches
+          ? TAMPERED_SIGNATURE_REASON
+          : TAMPERED_CONTENT_REASON,
     };
   }
 
   // No verification_id given: search by hash alone.
   const { data: doc } = await admin
     .from("documents")
-    .select("id, verification_id, document_type, status, revocation_reason, institutions(name)")
+    .select(
+      "id, verification_id, document_type, status, revocation_reason, expiry_date, file_hash, signature, institutions(name, signing_public_key)"
+    )
     .eq("file_hash", computedHash)
     .maybeSingle();
 
@@ -144,13 +224,30 @@ export async function verifyByUpload(
   }
 
   const institution = Array.isArray(doc.institutions) ? doc.institutions[0] : doc.institutions;
-  const result = doc.status === "revoked" ? "revoked" : "genuine";
+
+  let result: VerifyResult["status"];
+  let reason: string | null | undefined;
+  if (doc.status === "revoked") {
+    result = "revoked";
+    reason = doc.revocation_reason;
+  } else if (isExpired(doc.expiry_date)) {
+    result = "expired";
+    reason = `This document's validity period ended on ${doc.expiry_date}.`;
+  } else if (!hasValidStoredSignature(doc.file_hash, doc.signature, institution?.signing_public_key)) {
+    result = "tampered";
+    reason = TAMPERED_SIGNATURE_REASON;
+  } else {
+    result = "genuine";
+    reason = undefined;
+  }
+
   await logAttempt(admin, doc.id, doc.verification_id, result, channel);
   return {
     status: result,
     institution: institution?.name ?? null,
     document_type: doc.document_type,
     verification_id: doc.verification_id,
-    reason: doc.status === "revoked" ? doc.revocation_reason : undefined,
+    expiry_date: result === "expired" ? doc.expiry_date : undefined,
+    reason,
   };
 }

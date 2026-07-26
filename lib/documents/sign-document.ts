@@ -21,6 +21,8 @@ export type SignDocumentInput = {
   actorId: string | null;
   actorType?: "user" | "system" | "api_partner";
   auditAction?: string;
+  /** ISO date string. Most document types have no expiry (e.g. certificates); optional. */
+  expiryDate?: string | null;
 };
 
 export type SignDocumentResult = {
@@ -56,6 +58,7 @@ export async function signDocumentCore(
       verification_id: verificationId,
       qr_payload: qrPayload,
       pin_code: pinCode,
+      expiry_date: input.expiryDate ?? null,
     })
     .select("id, verification_id, pin_code, qr_payload, status")
     .single();

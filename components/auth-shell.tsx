@@ -1,8 +1,8 @@
-/**
- * Shared shell for the sign-in and institution-registration pages: a
- * lagoon-teal side panel with the mark + tagline, and a card for the form.
- * Keeps both auth screens visually identical apart from their content.
- */
+"use client";
+
+import { LanguageToggle } from "@/components/language-toggle";
+import { useI18n } from "@/components/i18n-provider";
+
 export function AuthShell({
   eyebrow,
   title,
@@ -14,29 +14,34 @@ export function AuthShell({
   subtitle?: string;
   children: React.ReactNode;
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="flex min-h-full flex-1 bg-chekkam-surface">
       <div className="hidden w-[38%] flex-col justify-between bg-gradient-lagoon p-10 text-white lg:flex">
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-sm">
-            ✓
-          </span>
-          <span className="font-[family-name:var(--font-heading)] text-lg font-semibold">Chekkam</span>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-sm">
+              ✓
+            </span>
+            <span className="font-[family-name:var(--font-heading)] text-lg font-semibold">Chekkam</span>
+          </div>
+          <LanguageToggle dark />
         </div>
         <div>
           <p className="font-[family-name:var(--font-heading)] text-3xl font-medium italic leading-tight text-white/95">
-            One check, total trust.
+            {t("authSideTagline")}
           </p>
-          <p className="mt-4 max-w-xs text-sm text-white/60">
-            Every document signed, revoked, or published here is logged — human review comes before
-            anything reaches the public.
-          </p>
+          <p className="mt-4 max-w-xs text-sm text-white/60">{t("authSideBody")}</p>
         </div>
-        <p className="text-xs text-white/40">Chekkam staff dashboard</p>
+        <p className="text-xs text-white/40">{t("staffDashboard")}</p>
       </div>
 
       <div className="flex flex-1 items-center justify-center px-6 py-16">
         <div className="w-full max-w-sm">
+          <div className="mb-5 flex justify-end lg:hidden">
+            <LanguageToggle />
+          </div>
           <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-chekkam-primary">
             {eyebrow}
           </div>
