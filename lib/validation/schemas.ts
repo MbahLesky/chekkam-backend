@@ -13,6 +13,8 @@ export const reportCreateSchema = z
       .default("unknown"),
     lat: z.number().min(-90).max(90).optional(),
     lng: z.number().min(-180).max(180).optional(),
+    /** Links a prior POST /api/ocr/upload result to this report (evidence.report_id). */
+    evidence_id: z.string().uuid().optional(),
   })
   .refine(
     (data) =>
@@ -47,6 +49,11 @@ export const documentSignSchema = z.object({
   institution_id: z.string().uuid(),
   document_type: z.string().min(1),
   recipient_name: z.string().optional(),
+  /** Date string (e.g. "2027-01-31" from an HTML date input, or full ISO). Optional — most document types (certificates, letters) never expire. */
+  expiry_date: z
+    .string()
+    .refine((val) => !isNaN(Date.parse(val)), "expiry_date must be a valid date")
+    .optional(),
 });
 
 export const documentRevokeSchema = z.object({
@@ -86,6 +93,10 @@ export const institutionCreateSchema = z.object({
   ]),
   contact_email: z.string().email().optional(),
   contact_phone: z.string().optional(),
+});
+
+export const institutionStatusUpdateSchema = z.object({
+  status: z.enum(["active", "suspended"]),
 });
 
 export const campaignUpdateSchema = z.object({

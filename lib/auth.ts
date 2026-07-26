@@ -12,6 +12,19 @@ export type Role =
 
 export type AuthedProfile = { id: string; role: Role };
 
+/**
+ * Resolves the caller's user ID if a valid session is present, or null for
+ * anonymous callers — for endpoints that allow anonymous submission (reports,
+ * OCR uploads) but still attribute the record to a session when one exists.
+ */
+export async function resolveOptionalUserId(req: Request): Promise<string | null> {
+  const token = bearerTokenFrom(req);
+  if (!token) return null;
+  const admin = getSupabaseAdmin();
+  const { data } = await admin.auth.getUser(token);
+  return data.user?.id ?? null;
+}
+
 /** Verifies the request's bearer token against Supabase Auth and loads its profile/role. */
 export async function requireUser(req: Request): Promise<AuthedProfile> {
   const token = bearerTokenFrom(req);

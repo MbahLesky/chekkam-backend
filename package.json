@@ -10,18 +10,22 @@
     "db:seed": "tsx scripts/seed.ts",
     "test": "node --import tsx --test tests/*.test.ts",
     "lint": "eslint",
+    "test": "vitest run",
     "generate-signing-key": "node scripts/generate-signing-key.mjs",
     "issue-api-key": "node scripts/issue-api-key.mjs",
     "set-telegram-webhook": "node scripts/set-telegram-webhook.mjs"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.100",
     "@supabase/supabase-js": "^2.110.0",
     "@upstash/redis": "^1.38.0",
+    "file-type": "^19.6.0",
     "firebase-admin": "^14.1.0",
     "jimp": "^1.6.1",
     "jsqr": "^1.4.0",
     "next": "16.2.10",
-    "pdf-lib": "^1.17.1",
+    "pdf-parse": "^1.1.4",
+    "pdfjs-dist": "^4.10.38",
     "pg": "^8.13.1",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
@@ -32,12 +36,14 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pdf-parse": "^1.1.5",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }

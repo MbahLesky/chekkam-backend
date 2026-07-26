@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { ValidationError, toErrorResponse } from "@/lib/errors";
 import { pickLang, tt } from "@/lib/i18n";
 import { verifyByUpload, VerifierChannel } from "@/lib/documents/verify";
 
+const RATE_LIMIT = 30;
+const RATE_WINDOW_SECONDS = 10 * 60;
+
 /**
  * POST /api/documents/verify-upload — verify by uploaded file, optionally
  * scoped to a known verification_id/PIN. SRS 6.4, 10.2.
+ * Public/unauthenticated by design — rate-limited by IP instead.
  *
  * multipart/form-data fields: file (required), verification_id (optional).
  * Thin wrapper over lib/documents/verify.ts — the shared logic also used by
@@ -18,6 +23,23 @@ export async function POST(req: NextRequest) {
     req.headers.get("accept-language")
   );
   try {
+    const clientIp =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
+    const rate = await checkRateLimit(`documents-verify:${clientIp}`, RATE_LIMIT, RATE_WINDOW_SECONDS);
+    if (!rate.allowed) {
+      return NextResponse.json(
+        {
+          error: {
+            code: "RATE_LIMITED",
+            message: tt("rateLimitedVerify", preferredLang),
+          },
+        },
+        { status: 429 }
+      );
+    }
+
     const form = await req.formData();
     preferredLang = pickLang(
       (form.get("language") as string | null) ?? req.nextUrl.searchParams.get("lang"),

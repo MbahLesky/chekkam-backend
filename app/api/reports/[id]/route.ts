@@ -8,7 +8,13 @@ import { sendPushToTokens } from "@/lib/push/fcm";
 
 const FINAL_STATUSES = new Set(["verified_threat", "false_report", "dismissed"]);
 
-/** GET /api/reports/:id — full analysis detail (SRS 6.1). */
+/**
+ * GET /api/reports/:id — full analysis detail (SRS 6.1). When the report is
+ * part of a scam campaign (lib/campaigns/matcher.ts), includes a
+ * `related_reports` summary of other reports in that campaign — count and
+ * risk fields only, never another citizen's raw_content or reporter_id
+ * (same redaction posture as lib/privacy/redact.ts).
+ */
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -19,7 +25,18 @@ export async function GET(
     const { data, error } = await admin.from("reports").select("*").eq("id", id).maybeSingle();
     if (error) throw error;
     if (!data) return jsonError("NOT_FOUND", "Report not found.", 404);
-    return NextResponse.json(data);
+
+    let relatedReports: Array<Record<string, unknown>> = [];
+    if (data.campaign_id) {
+      const { data: related } = await admin
+        .from("reports")
+        .select("id, risk_level, category, created_at")
+        .eq("campaign_id", data.campaign_id)
+        .neq("id", id);
+      relatedReports = related ?? [];
+    }
+
+    return NextResponse.json({ ...data, related_reports: relatedReports });
   } catch (err) {
     return toErrorResponse(err);
   }

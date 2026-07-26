@@ -30,6 +30,15 @@ export async function POST(
       .single();
 
     if (error) throw error;
+
+    await admin.from("audit_logs").insert({
+      actor_id: profile.id,
+      action: "institution.member_add",
+      target_table: "institution_members",
+      target_id: data.id,
+      metadata: { institution_id: id, added_user_id: body.user_id, role: body.role },
+    });
+
     return NextResponse.json(data, { status: 201 });
   } catch (err) {
     return toErrorResponse(err);

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { bearerTokenFrom } from "@/lib/supabase/client";
+import { requireUser, resolveOptionalUserId } from "@/lib/auth";
 import { reportCreateSchema } from "@/lib/validation/schemas";
 import { parseBody } from "@/lib/validation/parse";
 import { toErrorResponse } from "@/lib/errors";
@@ -13,15 +13,6 @@ import {
   attachToCampaign,
   createCampaignFromReports,
 } from "@/lib/campaigns/matcher";
-
-/** Anonymous submission is allowed (FR-005); resolves reporter_id only if a session token is present. */
-async function resolveReporterId(req: NextRequest): Promise<string | null> {
-  const token = bearerTokenFrom(req);
-  if (!token) return null;
-  const admin = getSupabaseAdmin();
-  const { data } = await admin.auth.getUser(token);
-  return data.user?.id ?? null;
-}
 
 /**
  * POST /api/reports — submit suspicious content (SRS FR-010, 6.1).
@@ -37,7 +28,7 @@ export async function POST(req: NextRequest) {
       body.language === "unknown" ? null : body.language,
       req.headers.get("accept-language")
     );
-    const reporterId = await resolveReporterId(req);
+    const reporterId = await resolveOptionalUserId(req);
     const admin = getSupabaseAdmin();
 
     const location =
@@ -64,8 +55,19 @@ export async function POST(req: NextRequest) {
     const reportId = inserted.id as string;
     let finalStatus: string = "pending";
 
+    // Links a prior POST /api/ocr/upload result to this report for audit
+    // traceability (evidence.report_id, unset by default). Best-effort: an
+    // unknown/foreign evidence_id is simply a no-op, never a failed report.
+    if (body.evidence_id) {
+      await admin.from("evidence").update({ report_id: reportId }).eq("id", body.evidence_id);
+    }
+
     if (body.content_type === "text" || body.content_type === "link") {
-      const analysis = await analyzeContent(body.raw_content ?? "", preferredLang);
+      const analysis = await analyzeContent(body.raw_content ?? "", {
+        reportId,
+        inputType: body.content_type,
+        preferredLanguage: preferredLang,
+      });
       const fingerprint = extractFingerprint(body.raw_content ?? "");
 
       let campaignId = await matchCampaign(admin, fingerprint);
@@ -119,17 +121,28 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/** GET /api/reports — filterable list for the analyst web dashboard (FR-081). */
+/**
+ * GET /api/reports — filterable list. Staff (analyst/admin/super_admin) get
+ * the full dashboard list (FR-081); everyone else is scoped to their own
+ * submitted reports ("my reports" history) regardless of other filters —
+ * this endpoint requires a session either way.
+ */
 export async function GET(req: NextRequest) {
   try {
+    const profile = await requireUser(req);
     const admin = getSupabaseAdmin();
     const { searchParams } = req.nextUrl;
+    const isStaff = ["analyst", "admin", "super_admin"].includes(profile.role);
 
     let query = admin
       .from("reports")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(100);
+
+    if (!isStaff) {
+      query = query.eq("reporter_id", profile.id);
+    }
 
     const status = searchParams.get("status");
     const riskLevel = searchParams.get("risk_level");

@@ -41,6 +41,10 @@ export const apiText = {
     en: "Too many checks from this network. Please wait a bit and try again.",
     fr: "Trop de vérifications depuis ce réseau. Patientez un moment puis réessayez.",
   },
+  rateLimitedVerify: {
+    en: "Too many verification checks from this network. Please wait a bit and try again.",
+    fr: "Trop de vérifications de document depuis ce réseau. Patientez un moment puis réessayez.",
+  },
 } satisfies Record<string, Record<Lang, string>>;
 
 export function tt(key: keyof typeof apiText, lang: Lang): string {

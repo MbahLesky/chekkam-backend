@@ -52,7 +52,10 @@ export async function POST(req: NextRequest) {
 
     const body = parseBody(extensionCheckSchema, await req.json());
     const preferredLang = pickLang(body.language, req.headers.get("accept-language"));
-    const analysis = await analyzeContent(body.content, preferredLang);
+    const analysis = await analyzeContent(body.content, {
+      inputType: body.type === "link" ? "link" : "text",
+      preferredLanguage: preferredLang,
+    });
 
     // Best-effort persistence: an extension check still returns a result even
     // if Supabase isn't configured yet or the insert fails for any reason.

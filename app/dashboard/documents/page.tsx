@@ -29,6 +29,7 @@ type Document = {
   issued_at: string;
   revoked_at: string | null;
   revocation_reason: string | null;
+  expiry_date: string | null;
 };
 
 const inputClass =
@@ -157,6 +158,22 @@ export default function DocumentsDashboardPage() {
     }
   }
 
+  async function restore(id: string) {
+    try {
+      const headers = await authHeaders();
+      const res = await fetch(`/api/documents/${id}/restore?lang=${lang}`, {
+        method: "POST",
+        headers,
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error?.message ?? t("somethingWrong"));
+      setSelected(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("somethingWrong"));
+    }
+  }
+
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
       <div className="flex items-start justify-between gap-4">
@@ -248,15 +265,15 @@ export default function DocumentsDashboardPage() {
         )}
       </div>
 
-      {signResult && (
-        <SignResultModal
-          result={signResult}
-          onClose={() => setSignResult(null)}
-          onDownloadCertificate={downloadCertificate}
-          certLoading={certLoadingId === signResult.id}
+      {signResult && <SignResultModal result={signResult} onClose={() => setSignResult(null)} />}
+      {selected && (
+        <DocumentDetailModal
+          document={selected}
+          onClose={() => setSelected(null)}
+          onRevoke={revoke}
+          onRestore={restore}
         />
       )}
-      {selected && <DocumentDetailModal document={selected} onClose={() => setSelected(null)} onRevoke={revoke} />}
     </div>
   );
 }
@@ -273,6 +290,7 @@ function SignDocumentPanel({
   const [institutionId, setInstitutionId] = useState("");
   const [documentType, setDocumentType] = useState("certificate");
   const [recipientName, setRecipientName] = useState("");
+  const [expiryDate, setExpiryDate] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -292,6 +310,7 @@ function SignDocumentPanel({
       form.set("institution_id", institutionId);
       form.set("document_type", documentType);
       form.set("recipient_name", recipientName);
+      if (expiryDate) form.set("expiry_date", expiryDate);
       form.set("file", file);
 
       const res = await fetch("/api/documents/sign", {
@@ -306,6 +325,7 @@ function SignDocumentPanel({
       setOpen(false);
       setInstitutionId("");
       setRecipientName("");
+      setExpiryDate("");
       setFile(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("somethingWrong"));
@@ -339,6 +359,15 @@ function SignDocumentPanel({
           <label className="block">
             <span className="text-xs font-medium text-chekkam-muted">{t("recipientOptional")}</span>
             <input value={recipientName} onChange={(e) => setRecipientName(e.target.value)} className={`${inputClass} mt-1`} />
+          </label>
+          <label className="block">
+            <span className="text-xs font-medium text-chekkam-muted">{t("expiryDateOptional")}</span>
+            <input
+              type="date"
+              value={expiryDate}
+              onChange={(e) => setExpiryDate(e.target.value)}
+              className={`${inputClass} mt-1`}
+            />
           </label>
           <label className="block">
             <span className="text-xs font-medium text-chekkam-muted">{t("documentFile")}</span>
@@ -414,10 +443,12 @@ function DocumentDetailModal({
   document,
   onClose,
   onRevoke,
+  onRestore,
 }: {
   document: Document;
   onClose: () => void;
   onRevoke: (id: string, reason: string) => void;
+  onRestore: (id: string) => void;
 }) {
   const { lang, t } = useI18n();
   const [reason, setReason] = useState("");
@@ -446,11 +477,14 @@ function DocumentDetailModal({
         <Row label={t("fileHash")} value={document.file_hash} mono breakAll />
         <Row label={t("signature")} value={document.signature} mono breakAll />
         <Row label={t("issued")} value={new Date(document.issued_at).toLocaleString(locale)} />
+        {document.expiry_date && (
+          <Row label={t("expires")} value={new Date(document.expiry_date).toLocaleDateString(locale)} />
+        )}
         {document.revoked_at && <Row label={t("revoked")} value={new Date(document.revoked_at).toLocaleString(locale)} />}
         {document.revocation_reason && <Row label={t("revocationReason")} value={document.revocation_reason} />}
       </dl>
 
-      {document.status === "active" && (
+      {document.status === "active" ? (
         <div className="mt-5 border-t border-chekkam-border pt-5">
           <label className="block">
             <span className="text-xs font-medium text-chekkam-muted">{t("reasonForRevoking")}</span>
@@ -458,6 +492,15 @@ function DocumentDetailModal({
           </label>
           <button onClick={() => onRevoke(document.id, reason)} disabled={!reason.trim()} className="mt-3 rounded-[var(--radius-chekkam-sm)] bg-status-danger px-4 py-2 text-sm font-semibold text-white shadow-chekkam-sm disabled:opacity-50">
             {t("revokeDocument")}
+          </button>
+        </div>
+      ) : (
+        <div className="mt-5 border-t border-chekkam-border pt-5">
+          <button
+            onClick={() => onRestore(document.id)}
+            className="rounded-[var(--radius-chekkam-sm)] bg-status-success px-4 py-2 text-sm font-semibold text-white shadow-chekkam-sm"
+          >
+            {t("restoreDocument")}
           </button>
         </div>
       )}

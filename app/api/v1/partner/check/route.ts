@@ -24,10 +24,9 @@ export async function POST(req: NextRequest) {
     apiKeyId = apiKey.id;
 
     const body = parseBody(partnerCheckSchema, await req.json());
-    const analysis = await analyzeContent(
-      body.content,
-      pickLang(body.language, requestLang)
-    );
+    const analysis = await analyzeContent(body.content, {
+      preferredLanguage: pickLang(body.language, requestLang),
+    });
 
     const response = NextResponse.json({
       risk_level: analysis.risk_level,
