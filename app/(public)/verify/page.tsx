@@ -96,7 +96,7 @@ export default function VerifyHubPage() {
         </label>
         <button
           type="submit"
-          className="rounded-[var(--radius-chekkam-sm)] bg-gradient-lagoon px-4 py-2.5 text-sm font-semibold text-white shadow-chekkam-sm transition hover:brightness-110"
+          className="rounded-[var(--radius-chekkam-sm)] bg-gradient-hero px-4 py-2.5 text-sm font-semibold text-white shadow-chekkam-sm transition hover:brightness-110"
         >
           {t("lookUpById")}
         </button>

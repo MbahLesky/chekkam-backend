@@ -177,7 +177,7 @@ export default function PublicAlertsAdminPage() {
         </div>
         <button
           onClick={() => setShowCreate((v) => !v)}
-          className="shrink-0 rounded-[var(--radius-chekkam-sm)] bg-gradient-lagoon px-4 py-2 text-sm font-semibold text-white shadow-chekkam-sm"
+          className="shrink-0 rounded-[var(--radius-chekkam-sm)] bg-gradient-hero px-4 py-2 text-sm font-semibold text-white shadow-chekkam-sm"
         >
           {showCreate ? t("cancel") : t("createNewAlert")}
         </button>
@@ -327,7 +327,7 @@ function AlertCard({
           <button onClick={() => onSave(alert)} disabled={busy || !hasEdits} className="rounded-[var(--radius-chekkam-sm)] border border-chekkam-primary px-3.5 py-1.5 text-xs font-semibold text-chekkam-primary disabled:opacity-50">
             {t("saveChanges")}
           </button>
-          <button onClick={() => onPublish(alert.id)} disabled={busy} className="rounded-[var(--radius-chekkam-sm)] bg-gradient-lagoon px-3.5 py-1.5 text-xs font-semibold text-white shadow-chekkam-sm disabled:opacity-60">
+          <button onClick={() => onPublish(alert.id)} disabled={busy} className="rounded-[var(--radius-chekkam-sm)] bg-gradient-hero px-3.5 py-1.5 text-xs font-semibold text-white shadow-chekkam-sm disabled:opacity-60">
             {busy ? t("publishing") : t("publish")}
           </button>
         </div>

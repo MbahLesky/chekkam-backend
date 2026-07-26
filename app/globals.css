@@ -1,13 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  /* Chekkam brand tokens v3 — bold red/maroon/ink identity.
-     See Chekkam_Brand_Guide.md for rationale. Token names (lagoon/bright)
-     are kept from v2 for continuity across the codebase; their values now
-     point at the red palette instead of teal. */
-  --chekkam-lagoon: #68020f; /* deep maroon — hero/dark surfaces, danger status */
-  --chekkam-primary: #f21137; /* primary actions, links */
-  --chekkam-bright: #ff3355; /* hover/active/gradient highlight */
+  /* Chekkam brand tokens v4 — two-tone orange/deep-red identity.
+     See chekkam-app/docs/Chekkam_Brand_Guide_v4.md §3 and §10 for rationale.
+     Renamed from the v3 `lagoon` token to `deep` to match the guide. */
+  --chekkam-deep: #990000; /* Deep Red — gradient anchor, danger status */
+  --chekkam-primary: #f15a29; /* Primary Orange — actions, links, the C */
+  --chekkam-bright: #ff7a3d; /* Bright Orange — hover/active/gradient highlight */
 
   --chekkam-ink: #030303;
   --chekkam-muted: #4a4a4a;
@@ -17,9 +16,11 @@
   --chekkam-tint: #f7f1f1; /* recessed sections / fields */
   --chekkam-border: #e8dede;
 
+  /* Warning is a distinct gold rather than a shade of the brand orange, so
+     brand and status stay separable at a glance (§3.2). */
   --status-success: #1e8e5a;
-  --status-warning: #b5690f;
-  --status-danger: #68020f;
+  --status-warning: #a6790b;
+  --status-danger: #990000;
   --status-neutral: #7c7272;
 
   --shadow-sm: 0 1px 2px rgba(3, 3, 3, 0.06);
@@ -32,9 +33,9 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --chekkam-lagoon: #4a0209;
-    --chekkam-primary: #ff3b5c;
-    --chekkam-bright: #ff6b85;
+    --chekkam-deep: #6b0000;
+    --chekkam-primary: #ff7a45;
+    --chekkam-bright: #ff9a66;
     --chekkam-ink: #fffffe;
     --chekkam-muted: #c9c0c0;
     --chekkam-faint: #8a8080;
@@ -43,8 +44,8 @@
     --chekkam-tint: #1f1414;
     --chekkam-border: #3a2626;
     --status-success: #3fbe85;
-    --status-warning: #e2a33f;
-    --status-danger: #ff5c6e;
+    --status-warning: #e0ac3f;
+    --status-danger: #ff5c4d;
     --status-neutral: #9a8f8f;
   }
 }
@@ -52,7 +53,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-chekkam-lagoon: var(--chekkam-lagoon);
+  --color-chekkam-deep: var(--chekkam-deep);
   --color-chekkam-primary: var(--chekkam-primary);
   --color-chekkam-bright: var(--chekkam-bright);
   --color-chekkam-ink: var(--chekkam-ink);
@@ -66,8 +67,8 @@
   --color-status-warning: var(--status-warning);
   --color-status-danger: var(--status-danger);
   --color-status-neutral: var(--status-neutral);
-  --font-heading: var(--font-fraunces), Georgia, serif;
-  --font-body: var(--font-sans), sans-serif;
+  --font-heading: var(--font-display), system-ui, sans-serif;
+  --font-body: var(--font-sans), system-ui, sans-serif;
   --font-data: var(--font-mono), monospace;
   --radius-chekkam-sm: 10px;
   --radius-chekkam: 18px;
@@ -85,8 +86,10 @@ body {
 .shadow-chekkam-md { box-shadow: var(--shadow-md); }
 .shadow-chekkam-lg { box-shadow: var(--shadow-lg); }
 
-.bg-gradient-lagoon {
-  background-image: linear-gradient(135deg, var(--chekkam-lagoon), var(--chekkam-primary));
+/* Gradients (§3.3). Text on either must be white — both cross dark enough
+   territory that only white holds contrast across the whole range. */
+.bg-gradient-hero {
+  background-image: linear-gradient(135deg, var(--chekkam-deep), var(--chekkam-primary));
 }
 .bg-gradient-seal {
   background-image: linear-gradient(135deg, var(--chekkam-primary), var(--chekkam-ink));

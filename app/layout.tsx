@@ -1,17 +1,23 @@
 import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
-import { Fraunces, IBM_Plex_Mono, Inter } from "next/font/google";
+import { IBM_Plex_Mono, Plus_Jakarta_Sans, Sora } from "next/font/google";
 import { I18nProvider } from "@/components/i18n-provider";
 import { normalizeLang } from "@/lib/i18n";
 import "./globals.css";
 
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
+// Brand Guide v4 §4.1: Sora carries the logo wordmark and headings, Plus
+// Jakarta Sans carries body/UI text (it has the stronger French diacritic
+// coverage), IBM Plex Mono carries codes and IDs. Sora has no italic, so
+// unlike v3's Fraunces it declares only the normal style.
+const sora = Sora({
+  variable: "--font-display",
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  style: ["normal", "italic"],
+  weight: ["400", "600", "700"],
 });
-const inter = Inter({ variable: "--font-sans", subsets: ["latin"] });
+const jakarta = Plus_Jakarta_Sans({
+  variable: "--font-sans",
+  subsets: ["latin"],
+});
 const plexMono = IBM_Plex_Mono({
   variable: "--font-mono",
   subsets: ["latin"],
@@ -37,7 +43,7 @@ export default async function RootLayout({
   return (
     <html
       lang={lang}
-      className={`${fraunces.variable} ${inter.variable} ${plexMono.variable} h-full antialiased`}
+      className={`${sora.variable} ${jakarta.variable} ${plexMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
         <I18nProvider initialLang={lang}>{children}</I18nProvider>
