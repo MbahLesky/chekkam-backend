@@ -265,7 +265,14 @@ export default function DocumentsDashboardPage() {
         )}
       </div>
 
-      {signResult && <SignResultModal result={signResult} onClose={() => setSignResult(null)} />}
+      {signResult && (
+        <SignResultModal
+          result={signResult}
+          onClose={() => setSignResult(null)}
+          onDownloadCertificate={downloadCertificate}
+          certLoading={certLoadingId === signResult.id}
+        />
+      )}
       {selected && (
         <DocumentDetailModal
           document={selected}
