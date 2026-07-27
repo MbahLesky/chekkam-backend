@@ -9,7 +9,7 @@ import { verifySignature } from "@/lib/crypto/verify";
  * instead of a re-implementation. The two HTTP routes are now thin wrappers
  * around these functions — behavior is unchanged.
  */
-export type VerifierChannel = "mobile" | "web" | "api" | "whatsapp" | "telegram" | "extension";
+export type VerifierChannel = "mobile" | "web" | "api" | "whatsapp" | "telegram" | "extension" | "widget";
 
 export type VerifyResult = {
   status: "genuine" | "tampered" | "revoked" | "expired" | "not_found";
