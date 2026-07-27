@@ -73,6 +73,12 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <section className="mx-auto w-full max-w-4xl px-6 pb-16 text-center">
+        <Link href="/pricing" className="text-sm font-medium text-chekkam-primary hover:underline">
+          Pricing & business model →
+        </Link>
+      </section>
     </div>
   );
 }
