@@ -12,7 +12,7 @@ const partnerCheckSchema = z.object({
 });
 
 /**
- * POST /v1/partner/check — server-to-server text/link risk check for API
+ * POST /api/v1/partner/check — server-to-server text/link risk check for API
  * partners (FR-061). Auth via X-Api-Key header, not a Supabase session.
  */
 export async function POST(req: NextRequest) {

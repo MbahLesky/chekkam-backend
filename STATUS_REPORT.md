@@ -1,6 +1,6 @@
 # Chekkam — Status Report
 
-**Last updated:** 2026-07-27, continuing the autonomous build run (Task 11 — all 12 P0/P1/P2 tasks now attempted). Pitch is Thursday 30 July.
+**Last updated:** 2026-07-27, closing gaps found in a full `docs/` audit requested after Task 11. Pitch is Thursday 30 July.
 **Baseline at start of run:** `npm run lint` clean, `npm run build` succeeds (35 routes), `npm test` → 14 files / 68 tests.
 **State after Task 8 (offline verification):** `npm run lint` clean, `npm run build` succeeds (37 routes), `npm test` → 17 files / 86 tests. All pushed to `origin/master` (commits `eec0ec1`..`a9651b3`).
 **State after Task 9 (PDF digital-signature verification):** `npm run lint` clean, `npm run build` succeeds (38 routes), `npm test` → 19 files / 102 tests (exact numbers from the actual local run, not carried forward from memory).
@@ -234,6 +234,55 @@ tool, not the dangerous one.
 `ml/METRICS.md` states — this must not be presented in the pitch as a validated, production-grade
 Cameroon-language model without the human review CLAUDE.md §10.4 requires.
 
+## Gap-closing pass — after a full `docs/` audit (2026-07-27, post-Task-11)
+
+A full audit of every file in `chekkam/docs/` found real gaps this report hadn't caught, plus
+documentation drift. What got fixed:
+
+**Documentation** (see `chekkam` repo's own commit for full detail — not duplicated here):
+synced the real team table from `01_Project_Charter.md` into `Chekkam_Project_Overview.md`
+(was four `[TO ADD]` placeholders despite the real team already existing elsewhere); reconciled
+the two diverged SRS copies into one canonical `02_SRS.md` v3.2; brought `03_Database_Schema.md`
+up to date through migration `0010`; fixed `08_Interface_Design.md`'s stale teal/Sora references;
+marked five stale/superseded documents accordingly.
+
+**FR-110 — Bulk verification dashboard UI, now built.** `/dashboard/enterprise/bulk`:
+CSV/text upload, results table with `StatusBadge` per row, client-side CSV export, sidebar nav
+entry. The API has existed since Task 6 with no UI reachable without curl — this closes that
+gap. Live-verified in a real browser: uploaded a CSV of one genuine, one revoked, and one
+nonexistent verification ID, confirmed all three render correctly, confirmed the CSV download
+produces a correct file.
+
+**FR-092 — Partner demo consumer app, now built.** `/partner-demo`: a standalone page styled as
+a fictional third-party product ("Yaoundé Metropolitan University — Admissions Verification
+Desk"), deliberately not using Chekkam's own `components/ui`/brand tokens. Two forms (message
+check, document verification) call `app/api/partner-demo-proxy/{check,document-check}/route.ts`,
+which hold a dedicated `PARTNER_DEMO_API_KEY` server-side (never sent to the browser) and forward
+to the real public `/api/v1/partner/*` endpoints — not a shortcut through internal functions, so
+this proves the actual partner API contract. Includes a collapsible raw-JSON panel per the spec.
+
+Two real bugs were caught building this, not by inspection: (1) the proxy initially called
+`process.env.APP_BASE_URL`, which is the *public-facing* URL used for QR/webhook links and can
+point at a different deployed instance than the one serving the request — fixed to derive the
+origin from the incoming request itself (`req.nextUrl.origin`); (2) the proxy then 404'd because
+the actual partner routes live at `/api/v1/partner/*`, not `/v1/partner/*` as their own doc
+comments, the SRS, and this demo's first draft all assumed — confirmed by testing both paths
+directly, then fixed in both proxy routes, both real route files' comments, and the SRS.
+
+**Real regression caught from concurrent activity, not from my own work:** a PR merged directly
+to `master` while this session was running (`012d4b9`, from a teammate) regenerated
+`package.json`/`package-lock.json` and silently dropped the `node-forge` dependency Task 9's PDF
+signature verification requires (`@types/node-forge` survived in devDependencies; the runtime
+package did not). `node_modules` still had the stale copy on disk, so nothing broke *yet* — the
+next fresh install (Railway included) would have removed it and broken every route importing
+`lib/documents/pdf-signature.ts`. Caught by diffing the concurrent merge's changes against
+`package.json` rather than assuming they were unrelated to this session's work. Fixed and
+verified with a full `tsc`/`eslint`/`build`/`test` pass.
+
+**Also found:** the concurrent merge changed `npm test`'s script (dropped `--maxWorkers=1
+--testTimeout=30000`) and regenerated `package-lock.json` (3549 lines churned) — re-verified the
+full suite passes under the new script, which it does (109/109).
+
 ## P0 checklist (Final Build Spec §10), current honest state
 
 - [x] No CORS errors for the production Vercel origin (code + one live check confirm this specific case; full re-verification blocked on Railway catching up)
@@ -269,3 +318,6 @@ three flagged-unrestricted tables plus the two new ones were specifically verifi
 - `lib/documents/pdf-signature.ts` (+ test), `app/api/documents/pdf-signature-check/route.ts`, `test-fixtures/pdf-signatures/*.pdf` — Task 9, PDF digital-signature verification. New dependency: `node-forge` (+ `@types/node-forge` dev-only)
 - `components/ui/{Button,StatusBadge,States,Card,index}.ts(x)` — Task 10, shared UI components; adopted in `app/dashboard/{documents,reports,alerts}/page.tsx`
 - `data/cameroon_seed.jsonl`, `ml/train.py`, `ml/model.json`, `ml/METRICS.md`, `lib/ai/local-model.ts` (+ test) — Task 11, local classifier. `lib/ai/risk-analysis.ts` refactored (`detectIndicators` extracted, `localModelFallback` added, `fallback()` composes the two non-AI tiers) and `lib/ai/predictions.ts` type widened. New migration `0010_ai_predictions_local_model_source.sql`, applied live
+- `app/dashboard/enterprise/bulk/page.tsx` — FR-110 dashboard UI; new i18n strings in `components/i18n-provider.tsx`; one new nav entry in `app/dashboard/layout.tsx`
+- `app/partner-demo/page.tsx`, `app/api/partner-demo-proxy/{check,document-check}/route.ts` — FR-092 demo consumer app. New env var `PARTNER_DEMO_API_KEY` (a dedicated partner key, minted via `scripts/issue-api-key.mjs`). Fixed a real path bug in the process: the actual partner routes live at `/api/v1/partner/*`, not `/v1/partner/*` — corrected in both new proxy routes, both real route files' own comments, and the SRS
+- `package.json`/`package-lock.json` — restored the `node-forge` dependency a concurrent merge had silently dropped (see above)

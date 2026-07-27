@@ -114,3 +114,23 @@ Offline verification (Task 8), PDF digital-signature verification (Task 9), the 
 component library (Task 10), and the local classifier (Task 11) were all completed — see
 STATUS_REPORT.md for what "complete" means for each (several were deliberately scoped down
 rather than built superficially at full spec width; the report says exactly where and why).
+
+## 8. `PARTNER_DEMO_API_KEY` is set locally only — not on Railway
+
+A new demo-only partner API key was minted for `/partner-demo` (FR-092) and added to the local
+`.env`. It needs to be set on Railway (as its own new key — do not reuse the local value; mint a
+fresh one there, same as every other credential this session has recommended) before this page
+works in production. Without it, `/partner-demo` still loads correctly and shows a clear
+"not configured" error on both forms rather than crashing — this is a configuration step, not a
+code gap.
+
+## 9. Concurrent-writer risk materialized into a real regression this time, not just a hypothetical
+
+Documented repeatedly in this file across the whole session as a risk; this pass found a concrete
+instance: a teammate's PR, merged directly to `master` mid-session, silently dropped the
+`node-forge` dependency (see STATUS_REPORT.md's gap-closing section for the full story). It was
+caught and fixed here, but it demonstrates the exact failure mode already warned about — an
+uncoordinated push changing `package.json` without anyone running the affected feature's tests
+before merging. The recommendation from Task 0 stands, more urgently with three days left: one
+person/session should own `master` pushes, or move to a review-gated PR flow with CI that at
+least runs `npm run build` before merge.
