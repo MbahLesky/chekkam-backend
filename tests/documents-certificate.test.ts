@@ -22,6 +22,7 @@ const sampleDoc: CertificateDocument = {
   pin_code: "123456",
   qr_payload: "http://localhost:3000/verify/CHK-4F7K-9QRT",
   issued_at: "2026-01-01T00:00:00Z",
+  expiry_date: null,
   revoked_at: null,
   revocation_reason: null,
 };
@@ -90,6 +91,7 @@ describe("fetchDocumentForCertificate", () => {
           pin_code: "123456",
           qr_payload: sampleDoc.qr_payload,
           issued_at: sampleDoc.issued_at,
+          expiry_date: null,
           revoked_at: null,
           revocation_reason: null,
           institutions: { name: "Lycée Bilingue de Yaoundé" },
@@ -115,6 +117,7 @@ describe("fetchDocumentForCertificate", () => {
           pin_code: null,
           qr_payload: sampleDoc.qr_payload,
           issued_at: sampleDoc.issued_at,
+          expiry_date: null,
           revoked_at: null,
           revocation_reason: null,
           institutions: [{ name: "Array-Shaped Institution" }],
@@ -168,6 +171,16 @@ describe("generateCertificatePdf", () => {
       revocation_reason: "Issued in error",
     };
     const bytes = await generateCertificatePdf(revoked);
+    const loaded = await PDFDocument.load(bytes);
+    expect(loaded.getPageCount()).toBe(1);
+  });
+
+  test("produces a loadable PDF for an expired document", async () => {
+    const expired: CertificateDocument = {
+      ...sampleDoc,
+      expiry_date: "2020-01-01T00:00:00Z",
+    };
+    const bytes = await generateCertificatePdf(expired);
     const loaded = await PDFDocument.load(bytes);
     expect(loaded.getPageCount()).toBe(1);
   });

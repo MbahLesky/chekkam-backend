@@ -8,9 +8,9 @@ const requireRole = vi.fn((profile: { role: string }, roles: string[]) => {
 });
 const requireInstitutionMember = vi.fn(async () => {});
 vi.mock("@/lib/auth", () => ({
-  requireUser: (...args: unknown[]) => requireUser(...args),
-  requireRole: (...args: unknown[]) => requireRole(...args),
-  requireInstitutionMember: (...args: unknown[]) => requireInstitutionMember(...args),
+  requireUser,
+  requireRole,
+  requireInstitutionMember,
 }));
 
 const fromMock = vi.fn();

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/components/i18n-provider";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
+import { Button, LoadingState, ErrorState, Card } from "@/components/ui";
 
 type Report = {
   id: string;
@@ -140,7 +141,7 @@ export default function ReportsDashboardPage() {
         <StatTile label={t("linkedCampaigns")} value={stats.campaigns} />
       </div>
 
-      <div className="flex flex-wrap gap-2 rounded-[var(--radius-chekkam)] border border-chekkam-border bg-chekkam-surface-raised p-3 shadow-chekkam-sm">
+      <Card className="flex flex-wrap gap-2 p-3">
         <select value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))} className={selectClass}>
           <option value="">{t("allStatuses")}</option>
           {STATUS_OPTIONS.map((status) => (
@@ -171,14 +172,14 @@ export default function ReportsDashboardPage() {
           placeholder={t("categoryPlaceholder")}
           className={selectClass}
         />
-      </div>
+      </Card>
 
-      {error && <p className="text-sm text-status-danger">{error}</p>}
-      {loading && <p className="text-sm text-chekkam-muted">{t("loading")}</p>}
+      {error && <ErrorState message={error} />}
+      {loading && <LoadingState message={t("loading")} />}
 
       <div className="flex flex-col gap-3">
         {reports.map((report) => (
-          <div key={report.id} className="rounded-[var(--radius-chekkam)] border border-chekkam-border bg-chekkam-surface-raised p-5 shadow-chekkam-sm">
+          <Card key={report.id} className="p-5">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -218,25 +219,30 @@ export default function ReportsDashboardPage() {
               </div>
               <div className="flex shrink-0 flex-col items-end gap-2">
                 <div className="flex flex-wrap justify-end gap-1.5">
-                  <button onClick={() => updateStatus(report.id, "under_review")} className="rounded-[var(--radius-chekkam-sm)] bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white shadow-chekkam-sm hover:brightness-110">
+                  <Button onClick={() => updateStatus(report.id, "under_review")} variant="outline" size="sm">
                     {t("markUnderReview")}
-                  </button>
-                  <button onClick={() => updateStatus(report.id, "verified_threat")} className="rounded-[var(--radius-chekkam-sm)] bg-status-danger px-2.5 py-1 text-xs font-semibold text-white shadow-chekkam-sm hover:brightness-110">
+                  </Button>
+                  <Button onClick={() => updateStatus(report.id, "verified_threat")} variant="danger" size="sm">
                     {t("verifyAsThreat")}
-                  </button>
-                  <button onClick={() => updateStatus(report.id, "false_report")} className="rounded-[var(--radius-chekkam-sm)] bg-chekkam-tint px-2.5 py-1 text-xs font-semibold text-chekkam-muted hover:bg-chekkam-border">
+                  </Button>
+                  <Button onClick={() => updateStatus(report.id, "false_report")} variant="tint" size="sm">
                     {t("falseReport")}
-                  </button>
-                  <button onClick={() => updateStatus(report.id, "dismissed")} className="rounded-[var(--radius-chekkam-sm)] bg-chekkam-tint px-2.5 py-1 text-xs font-semibold text-chekkam-muted hover:bg-chekkam-border">
+                  </Button>
+                  <Button onClick={() => updateStatus(report.id, "dismissed")} variant="tint" size="sm">
                     {t("dismiss")}
-                  </button>
+                  </Button>
                 </div>
-                <button onClick={() => promoteToAlert(report)} disabled={promoting === report.id} className="rounded-[var(--radius-chekkam-sm)] bg-gradient-lagoon px-2.5 py-1 text-xs font-semibold text-white shadow-chekkam-sm disabled:opacity-60">
-                  {promoting === report.id ? t("promoting") : t("promoteToAlert")}
-                </button>
+                <Button
+                  onClick={() => promoteToAlert(report)}
+                  loading={promoting === report.id}
+                  loadingText={t("promoting")}
+                  size="sm"
+                >
+                  {t("promoteToAlert")}
+                </Button>
               </div>
             </div>
-          </div>
+          </Card>
         ))}
         {!loading && reports.length === 0 && <p className="text-sm text-chekkam-muted">{t("noReportsMatch")}</p>}
       </div>
@@ -279,11 +285,11 @@ function StatTile({
 }) {
   const valueColor = danger ? "text-status-danger" : accent ? "text-chekkam-primary" : "text-chekkam-ink";
   return (
-    <div className="rounded-[var(--radius-chekkam)] border border-chekkam-border bg-chekkam-surface-raised p-4 shadow-chekkam-sm">
+    <Card className="p-4">
       <div className="text-xs font-medium uppercase tracking-wide text-chekkam-faint">{label}</div>
       <div className={`mt-1.5 font-[family-name:var(--font-heading)] text-3xl font-semibold ${valueColor}`}>
         {value}
       </div>
-    </div>
+    </Card>
   );
 }

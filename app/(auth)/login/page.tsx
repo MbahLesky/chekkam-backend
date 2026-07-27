@@ -73,7 +73,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="mt-2 w-full rounded-[var(--radius-chekkam-sm)] bg-gradient-lagoon px-4 py-2.5 text-sm font-semibold text-white shadow-chekkam-sm transition hover:brightness-110 disabled:opacity-60"
+          className="mt-2 w-full rounded-[var(--radius-chekkam-sm)] bg-gradient-hero px-4 py-2.5 text-sm font-semibold text-white shadow-chekkam-sm transition hover:brightness-110 disabled:opacity-60"
         >
           {loading ? t("signingIn") : t("signIn")}
         </button>

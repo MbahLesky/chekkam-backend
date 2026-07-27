@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LanguageToggle } from "@/components/language-toggle";
@@ -72,10 +73,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-full flex-1">
-      <aside className="flex w-56 flex-shrink-0 flex-col bg-gradient-lagoon px-4 py-6 text-white">
+      <aside className="flex w-56 flex-shrink-0 flex-col bg-gradient-hero px-4 py-6 text-white">
         <div className="mb-8 flex items-center justify-between gap-2 px-2">
           <div className="flex items-center gap-2.5">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15 text-xs">✓</span>
+            {/* Light chip so the full-color mark keeps its contrast against
+                the gradient sidebar (§2). */}
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white p-1">
+              <Image src="/chekkam_icon.png" alt="Chekkam" width={96} height={111} className="h-full w-auto" />
+            </span>
             <span className="font-[family-name:var(--font-heading)] text-base font-semibold">Chekkam</span>
           </div>
         </div>

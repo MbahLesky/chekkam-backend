@@ -4,8 +4,8 @@ import { NextRequest } from "next/server";
 const requireUser = vi.fn();
 const resolveOptionalUserId = vi.fn(async () => null);
 vi.mock("@/lib/auth", () => ({
-  requireUser: (...args: unknown[]) => requireUser(...args),
-  resolveOptionalUserId: (...args: unknown[]) => resolveOptionalUserId(...args),
+  requireUser,
+  resolveOptionalUserId,
 }));
 
 const fromMock = vi.fn();

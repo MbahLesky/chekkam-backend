@@ -2,7 +2,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export type LogAiPredictionInput = {
   reportId?: string | null;
-  source: "ai" | "rule_based_fallback";
+  source: "ai" | "local_model" | "rule_based_fallback";
   model?: string | null;
   inputType?: "text" | "link";
   latencyMs: number;

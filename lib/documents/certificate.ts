@@ -20,6 +20,7 @@ export type CertificateDocument = {
   pin_code: string | null;
   qr_payload: string;
   issued_at: string;
+  expiry_date: string | null;
   revoked_at: string | null;
   revocation_reason: string | null;
 };
@@ -32,7 +33,7 @@ export async function fetchDocumentForCertificate(
   const { data: doc } = await admin
     .from("documents")
     .select(
-      "id, institution_id, document_type, recipient_name, status, verification_id, pin_code, qr_payload, issued_at, revoked_at, revocation_reason, institutions(name)"
+      "id, institution_id, document_type, recipient_name, status, verification_id, pin_code, qr_payload, issued_at, expiry_date, revoked_at, revocation_reason, institutions(name)"
     )
     .eq("id", documentId)
     .maybeSingle();
@@ -51,6 +52,7 @@ export async function fetchDocumentForCertificate(
     pin_code: doc.pin_code,
     qr_payload: doc.qr_payload,
     issued_at: doc.issued_at,
+    expiry_date: doc.expiry_date,
     revoked_at: doc.revoked_at,
     revocation_reason: doc.revocation_reason,
   };
@@ -244,9 +246,17 @@ export async function generateCertificatePdf(doc: CertificateDocument): Promise<
   cursorY -= 30;
 
   // --- Status badge: icon + label + color, never color alone (Brand Guide §3.2, CLAUDE.md rule 9) ---
-  const isActive = doc.status === "active";
+  const isExpired =
+    doc.status === "active" &&
+    !!doc.expiry_date &&
+    new Date(doc.expiry_date) < new Date();
+  const isActive = doc.status === "active" && !isExpired;
   const statusColor = isActive ? COLOR.success : COLOR.maroon;
-  const statusLabel = isActive ? "ACTIVE — record in good standing" : "REVOKED";
+  const statusLabel = isActive
+    ? "ACTIVE — record in good standing"
+    : isExpired
+      ? "EXPIRED"
+      : "REVOKED";
   const iconSpace = 22;
   const badgeWidth = helveticaBold.widthOfTextAtSize(statusLabel, 11) + iconSpace + 24;
   const badgeY = cursorY - 20;
@@ -313,6 +323,19 @@ export async function generateCertificatePdf(doc: CertificateDocument): Promise<
     valueSize: 11,
   });
   rightY -= 30;
+  if (doc.expiry_date) {
+    rightY = drawLabelValue(page, {
+      x: col2X,
+      y: rightY,
+      label: isExpired ? "Expired" : "Valid until",
+      value: formatIssuedDate(doc.expiry_date),
+      labelFont: helvetica,
+      valueFont: helvetica,
+      valueSize: 11,
+      valueColor: isExpired ? COLOR.maroon : COLOR.ink,
+    });
+    rightY -= 30;
+  }
   if (!isActive && doc.revoked_at) {
     rightY = drawLabelValue(page, {
       x: col2X,

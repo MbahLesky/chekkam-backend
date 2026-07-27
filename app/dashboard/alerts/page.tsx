@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useI18n } from "@/components/i18n-provider";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
+import { Button, StatusBadge, LoadingState, ErrorState } from "@/components/ui";
 
 type PublicAlert = {
   id: string;
@@ -175,16 +176,16 @@ export default function PublicAlertsAdminPage() {
           </h1>
           <p className="mt-1 text-sm text-chekkam-muted">{t("publicAlertsAdminIntro")}</p>
         </div>
-        <button
-          onClick={() => setShowCreate((v) => !v)}
-          className="shrink-0 rounded-[var(--radius-chekkam-sm)] bg-gradient-lagoon px-4 py-2 text-sm font-semibold text-white shadow-chekkam-sm"
-        >
+        <Button onClick={() => setShowCreate((v) => !v)} className="shrink-0">
           {showCreate ? t("cancel") : t("createNewAlert")}
-        </button>
+        </Button>
       </div>
 
       {showCreate && (
-        <form onSubmit={createAlert} className="flex flex-col gap-3 rounded-[var(--radius-chekkam)] border border-chekkam-border bg-chekkam-surface-raised p-5 shadow-chekkam-sm">
+        <form
+          onSubmit={createAlert}
+          className="flex flex-col gap-3 rounded-[var(--radius-chekkam)] border border-chekkam-border bg-chekkam-surface-raised p-5 shadow-chekkam-sm"
+        >
           <label className="block">
             <span className="text-xs font-medium text-chekkam-muted">{t("title")}</span>
             <input required value={newAlert.title} onChange={(e) => setNewAlert((a) => ({ ...a, title: e.target.value }))} className={inputClass} />
@@ -219,14 +220,14 @@ export default function PublicAlertsAdminPage() {
             <span className="text-xs font-medium text-chekkam-muted">{t("relatedCampaignOptional")}</span>
             <input value={newAlert.related_campaign_id} onChange={(e) => setNewAlert((a) => ({ ...a, related_campaign_id: e.target.value }))} placeholder="uuid" className={`${inputClass} font-[family-name:var(--font-data)]`} />
           </label>
-          <button type="submit" disabled={creating} className="mt-1 self-start rounded-[var(--radius-chekkam-sm)] bg-chekkam-primary px-4 py-2 text-sm font-semibold text-white shadow-chekkam-sm disabled:opacity-60">
-            {creating ? t("creating") : t("createDraft")}
-          </button>
+          <Button type="submit" variant="solid" loading={creating} loadingText={t("creating")} className="mt-1 self-start">
+            {t("createDraft")}
+          </Button>
         </form>
       )}
 
-      {error && <p className="text-sm text-status-danger">{error}</p>}
-      {loading && <p className="text-sm text-chekkam-muted">{t("loading")}</p>}
+      {error && <ErrorState message={error} />}
+      {loading && <LoadingState message={t("loading")} />}
 
       <Section title={t("drafts")} count={drafts.length}>
         {drafts.map((alert) => (
@@ -301,11 +302,14 @@ function AlertCard({
   return (
     <div className={`rounded-[var(--radius-chekkam)] border bg-chekkam-surface-raised p-5 shadow-chekkam-sm ${highlighted ? "border-chekkam-primary ring-2 ring-chekkam-primary/15" : "border-chekkam-border"}`}>
       <div className="mb-3 flex items-center gap-2">
-        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${alert.published ? "bg-status-success/12 text-status-success" : "bg-status-neutral/12 text-status-neutral"}`}>
-          {alert.published
-            ? `${t("published")} ${alert.published_at ? new Date(alert.published_at).toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US") : ""}`
-            : t("draft")}
-        </span>
+        <StatusBadge
+          tone={alert.published ? "success" : "neutral"}
+          label={
+            alert.published
+              ? `${t("published")} ${alert.published_at ? new Date(alert.published_at).toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US") : ""}`
+              : t("draft")
+          }
+        />
         <span className="text-xs text-chekkam-faint">{alert.alert_type}</span>
         <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${SEVERITY_COLOR[alert.severity] ?? "bg-status-neutral/12 text-status-neutral"}`}>
           {alert.severity}
@@ -324,12 +328,12 @@ function AlertCard({
 
       {!alert.published && (
         <div className="flex gap-2">
-          <button onClick={() => onSave(alert)} disabled={busy || !hasEdits} className="rounded-[var(--radius-chekkam-sm)] border border-chekkam-primary px-3.5 py-1.5 text-xs font-semibold text-chekkam-primary disabled:opacity-50">
+          <Button onClick={() => onSave(alert)} disabled={busy || !hasEdits} variant="outline" size="sm">
             {t("saveChanges")}
-          </button>
-          <button onClick={() => onPublish(alert.id)} disabled={busy} className="rounded-[var(--radius-chekkam-sm)] bg-gradient-lagoon px-3.5 py-1.5 text-xs font-semibold text-white shadow-chekkam-sm disabled:opacity-60">
-            {busy ? t("publishing") : t("publish")}
-          </button>
+          </Button>
+          <Button onClick={() => onPublish(alert.id)} loading={busy} loadingText={t("publishing")} size="sm">
+            {t("publish")}
+          </Button>
         </div>
       )}
     </div>
