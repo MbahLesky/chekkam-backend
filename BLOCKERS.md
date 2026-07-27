@@ -68,9 +68,17 @@ pre-existing `app/api/documents/verify-upload/route.ts`, which has the identical
 keep the change scoped to Task 9. Worth a two-line fix (wrap in try/catch, same as the new route)
 before the pitch, since it's citizen-facing and a malformed request is not an exotic input.
 
+## 6. Shared UI components not yet adopted on every page
+
+Task 10 built `components/ui/{Button,StatusBadge,States,Card}` and migrated the three
+highest-duplication dashboard pages (`documents`, `reports`, `alerts`). `safety-alerts`, the
+public `check`/`verify` pages, and the auth pages still have their own hand-copied button/state
+classes — not a regression (they worked before and still work), just not yet consistent with the
+new shared components. Low-risk, mechanical follow-up whenever someone has a spare hour.
+
 ## Not blockers, but explicitly out of scope this run (see STATUS_REPORT.md for why)
 
-The shared UI component library (Task 10) and the local ML classifier (Task 11) were not
-attempted — each is a genuinely multi-hour build in its own right, and neither was abandoned
-mid-way; they simply were not started yet. Offline verification (Task 8) and PDF
-digital-signature verification (Task 9) were both completed this run — see STATUS_REPORT.md.
+The local ML classifier (Task 11) was not attempted — a genuinely multi-hour build (dataset
+authoring, training pipeline, licensing checks) in its own right, not abandoned mid-way, simply
+not started yet. Offline verification (Task 8), PDF digital-signature verification (Task 9), and
+the shared UI component library (Task 10) were all completed this run — see STATUS_REPORT.md.

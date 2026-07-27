@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { useI18n } from "@/components/i18n-provider";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
+import { Button, StatusBadge, LoadingState, EmptyState, ErrorState, Card } from "@/components/ui";
 
 type SignResult = {
   id: string;
@@ -195,11 +196,11 @@ export default function DocumentsDashboardPage() {
         />
       </div>
 
-      {error && <p className="text-sm text-status-danger">{error}</p>}
-      {certError && <p className="text-sm text-status-danger">{certError}</p>}
-      {loading && <p className="text-sm text-chekkam-muted">{t("loading")}</p>}
+      {error && <ErrorState message={error} />}
+      {certError && <ErrorState message={certError} />}
+      {loading && <LoadingState message={t("loading")} />}
 
-      <div className="overflow-hidden rounded-[var(--radius-chekkam)] border border-chekkam-border bg-chekkam-surface-raised shadow-chekkam-sm">
+      <Card className="overflow-hidden">
         <table className="w-full text-left text-sm">
           <thead className="bg-chekkam-tint text-xs font-semibold uppercase tracking-wide text-chekkam-faint">
             <tr>
@@ -221,15 +222,10 @@ export default function DocumentsDashboardPage() {
                 <td className="px-4 py-3 text-chekkam-ink">{doc.document_type}</td>
                 <td className="px-4 py-3 text-chekkam-muted">{doc.recipient_name ?? "-"}</td>
                 <td className="px-4 py-3">
-                  <span
-                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                      doc.status === "active"
-                        ? "bg-status-success/12 text-status-success"
-                        : "bg-status-neutral/12 text-status-neutral"
-                    }`}
-                  >
-                    {doc.status === "active" ? t("active") : t("revoked")}
-                  </span>
+                  <StatusBadge
+                    tone={doc.status === "active" ? "success" : "neutral"}
+                    label={doc.status === "active" ? t("active") : t("revoked")}
+                  />
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-3">
@@ -260,10 +256,8 @@ export default function DocumentsDashboardPage() {
             ))}
           </tbody>
         </table>
-        {!loading && documents.length === 0 && (
-          <p className="p-6 text-center text-sm text-chekkam-muted">{t("noDocuments")}</p>
-        )}
-      </div>
+        {!loading && documents.length === 0 && <EmptyState message={t("noDocuments")} />}
+      </Card>
 
       {signResult && (
         <SignResultModal
@@ -343,12 +337,7 @@ function SignDocumentPanel({
 
   return (
     <div className="shrink-0">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="rounded-[var(--radius-chekkam-sm)] bg-gradient-hero px-4 py-2 text-sm font-semibold text-white shadow-chekkam-sm"
-      >
-        {open ? t("cancel") : t("signNewDocument")}
-      </button>
+      <Button onClick={() => setOpen((v) => !v)}>{open ? t("cancel") : t("signNewDocument")}</Button>
 
       {open && (
         <form
@@ -380,14 +369,10 @@ function SignDocumentPanel({
             <span className="text-xs font-medium text-chekkam-muted">{t("documentFile")}</span>
             <input required type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="mt-1 w-full text-sm text-chekkam-muted file:mr-3 file:rounded-[var(--radius-chekkam-sm)] file:border-0 file:bg-chekkam-tint file:px-3 file:py-2 file:text-sm file:font-medium file:text-chekkam-ink" />
           </label>
-          {error && <p className="text-sm text-status-danger">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="rounded-[var(--radius-chekkam-sm)] bg-chekkam-primary px-4 py-2 text-sm font-semibold text-white shadow-chekkam-sm disabled:opacity-60"
-          >
-            {loading ? t("signing") : t("signDocument")}
-          </button>
+          {error && <ErrorState message={error} />}
+          <Button type="submit" variant="solid" loading={loading} loadingText={t("signing")}>
+            {t("signDocument")}
+          </Button>
         </form>
       )}
     </div>
@@ -431,17 +416,19 @@ function SignResultModal({
         </dl>
       </div>
       {/* Gate 1: the success state's one clear next action. */}
-      <button
+      <Button
         onClick={() => onDownloadCertificate(result)}
-        disabled={certLoading}
-        className="mt-5 w-full rounded-[var(--radius-chekkam-sm)] bg-chekkam-primary px-4 py-2 text-sm font-semibold text-white shadow-chekkam-sm disabled:opacity-60"
+        loading={certLoading}
+        loadingText={t("preparingCertificate")}
+        variant="solid"
+        className="mt-5 w-full"
       >
-        {certLoading ? t("preparingCertificate") : t("downloadCertificate")}
-      </button>
+        {t("downloadCertificate")}
+      </Button>
       <p className="mt-2 text-center text-xs text-chekkam-faint">{t("certificateHint")}</p>
-      <button onClick={onClose} className="mt-3 w-full rounded-[var(--radius-chekkam-sm)] border border-chekkam-border px-4 py-2 text-sm font-semibold text-chekkam-muted">
+      <Button onClick={onClose} variant="ghost" className="mt-3 w-full">
         {t("done")}
-      </button>
+      </Button>
     </ModalShell>
   );
 }
@@ -467,13 +454,10 @@ function DocumentDetailModal({
         <h2 className="font-[family-name:var(--font-heading)] text-xl font-semibold text-chekkam-ink">
           {document.document_type}
         </h2>
-        <span
-          className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-            document.status === "active" ? "bg-status-success/12 text-status-success" : "bg-status-neutral/12 text-status-neutral"
-          }`}
-        >
-          {document.status === "active" ? t("active") : t("revoked")}
-        </span>
+        <StatusBadge
+          tone={document.status === "active" ? "success" : "neutral"}
+          label={document.status === "active" ? t("active") : t("revoked")}
+        />
       </div>
 
       <dl className="flex flex-col gap-2 text-sm">
@@ -497,24 +481,21 @@ function DocumentDetailModal({
             <span className="text-xs font-medium text-chekkam-muted">{t("reasonForRevoking")}</span>
             <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("revokePlaceholder")} className={`${inputClass} mt-1`} />
           </label>
-          <button onClick={() => onRevoke(document.id, reason)} disabled={!reason.trim()} className="mt-3 rounded-[var(--radius-chekkam-sm)] bg-status-danger px-4 py-2 text-sm font-semibold text-white shadow-chekkam-sm disabled:opacity-50">
+          <Button onClick={() => onRevoke(document.id, reason)} disabled={!reason.trim()} variant="danger" className="mt-3">
             {t("revokeDocument")}
-          </button>
+          </Button>
         </div>
       ) : (
         <div className="mt-5 border-t border-chekkam-border pt-5">
-          <button
-            onClick={() => onRestore(document.id)}
-            className="rounded-[var(--radius-chekkam-sm)] bg-status-success px-4 py-2 text-sm font-semibold text-white shadow-chekkam-sm"
-          >
+          <Button onClick={() => onRestore(document.id)} variant="success">
             {t("restoreDocument")}
-          </button>
+          </Button>
         </div>
       )}
 
-      <button onClick={onClose} className="mt-5 w-full rounded-[var(--radius-chekkam-sm)] border border-chekkam-border px-4 py-2 text-sm font-semibold text-chekkam-muted">
+      <Button onClick={onClose} variant="ghost" className="mt-5 w-full">
         {t("close")}
-      </button>
+      </Button>
     </ModalShell>
   );
 }

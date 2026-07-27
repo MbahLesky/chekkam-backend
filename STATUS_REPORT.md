@@ -1,9 +1,10 @@
 # Chekkam — Status Report
 
-**Last updated:** 2026-07-27, continuing the autonomous build run (Task 9). Pitch is Thursday 30 July.
+**Last updated:** 2026-07-27, continuing the autonomous build run (Task 10). Pitch is Thursday 30 July.
 **Baseline at start of run:** `npm run lint` clean, `npm run build` succeeds (35 routes), `npm test` → 14 files / 68 tests.
 **State after Task 8 (offline verification):** `npm run lint` clean, `npm run build` succeeds (37 routes), `npm test` → 17 files / 86 tests. All pushed to `origin/master` (commits `eec0ec1`..`a9651b3`).
 **State after Task 9 (PDF digital-signature verification):** `npm run lint` clean, `npm run build` succeeds (38 routes), `npm test` → 19 files / 102 tests (exact numbers from the actual local run, not carried forward from memory).
+**State after Task 10 (shared UI components):** `npm run lint` clean, `npm run build` succeeds (38 routes — presentation-only change, no new routes), `npm test` → 19 files / 102 tests unchanged (no new automated tests — see rationale below). Live-verified in a real browser against the running dev server (screenshots taken, not just compiled).
 
 ## ⚠️ Read this first: concurrent-writer risk (unchanged conclusion, now with more evidence)
 
@@ -40,7 +41,7 @@ branch three days before a jury demo.
 | 7 | Verification receipt | **Done, fully.** Create → PDF download → public signature re-verification, all live-tested against a running server and the real production database. **Found and fixed a real bug via that live test** that no unit test caught: signing the raw `created_at` string failed verification after a Postgres round-trip (`Z` vs `+00:00` suffix, same instant) — every fresh receipt failed its own check. Fixed by normalizing to epoch milliseconds; added a regression test. Migration applied to live DB | ✅ Yes (local server + prod DB), not yet Railway-deployed |
 | 8 | Offline verification | **Done, backend primitives only, as scoped.** `lib/crypto/token.ts` (versioned, base64url, fixed-field-order signed token, 7 tests), `GET /api/institutions/public-keys` (public key cache endpoint), `GET /api/documents/:id/offline-token` (issues a token + QR). Deliberately does not touch `documents.qr_payload` or the existing `/verify/:id` flow — purely additive. Live-tested with real signing keys. Flutter-side on-device verification (`pointycastle`, key caching, airplane-mode UX, the "revocation not checked" caveat) is **not built** — cross-repo, large, explicitly P1 | ✅ Yes (backend only; no Flutter client exists yet to test end-to-end) |
 | 9 | PDF digital-signature verification | **Done.** See detailed writeup below | ✅ Yes (local server, real third-party fixtures) |
-| 10 | Shared UI component library | **Not attempted.** Explicitly the highest collision-risk item given concurrent brand/button-style commits landing on this exact area of the codebase during this run | — |
+| 10 | Shared UI component library | **Done, scoped to real duplication.** See detailed writeup below | ✅ Yes (browser screenshots against live dev server) |
 | 11 | Local classifier | **Not attempted.** Needs a real training pipeline, dataset acquisition/licensing checks, and Cameroon seed-data authoring — a multi-hour effort on its own, not something to rush | — |
 | 12-16 | Stretch (WhatsApp outbound, Messenger, C2PA, Trust Report, Share-to-Chekkam) | **Not attempted** — correctly out of scope; P0/P1 items above weren't all finished either | — |
 
@@ -109,6 +110,68 @@ reporting "unrecognised" instead — this is a substantial separate integration,
 wiring this into a UI (no Trust Report screen exists yet — that's FR-107, a different task); ZIP or
 multi-file batch checking (only single-file, matching the existing `verify-upload` pattern).
 
+## Task 10 detail — Shared UI component library (FR-017/018)
+
+**Re-assessed collision risk before starting:** this task was deferred earlier in the run as the
+highest collision-risk item, given commits from `bashiremouhamedel-web`/`MbahLesky` touching
+brand/button styles on this exact area. Re-checked `git fetch` + `git log` immediately before
+starting: zero new commits from anyone else since this run began (every commit in the last several
+hours is this session's own). The risk that justified deferring is no longer present right now —
+re-deferring indefinitely on a stale risk assessment would just leave real, measurable duplication
+in place for no remaining reason.
+
+**What was actually duplicated (verified by grep, not assumed):** ~15+ call sites across
+`app/dashboard/*.tsx` and `app/(auth)/*.tsx` hand-copied near-identical Tailwind class strings for
+buttons (`rounded-[var(--radius-chekkam-sm)] bg-gradient-hero px-4 py-2 text-sm font-semibold
+text-white shadow-chekkam-sm...`, etc.), loading/empty/error text states, and the card-panel
+wrapper. One of these was a genuine **product bug**, not just a style inconsistency: the documents
+table's status pill (`app/dashboard/documents/page.tsx`) rendered colour + text only, with no
+icon — a direct violation of CLAUDE.md rule 9, "status is never colour alone." A second was a
+genuine **off-brand colour**: the reports page's "mark under review" button used raw `bg-blue-600`,
+not a Chekkam design token.
+
+**What was built:** `components/ui/{Button,StatusBadge,States,Card}.tsx` (+ barrel `index.ts`).
+Every class string in `Button.tsx`'s variants (`primary`/`solid`/`outline`/`danger`/`success`/
+`ghost`/`tint`) was lifted verbatim from an existing call site — this does not introduce a new
+visual style, it collects the one that already exists so it stops re-drifting. `StatusBadge` adds
+an `aria-hidden` icon alongside the existing colour+label (fixing the rule-9 gap); the visible text
+label still carries the accessible name, the icon is decorative reinforcement for sighted users
+scanning by shape/colour.
+
+**Real adoption, not just creation:** migrated `app/dashboard/documents/page.tsx` (the largest,
+most repetitive dashboard page — 12 buttons, 2 status pills, loading/empty/error states, the table
+card wrapper), plus `app/dashboard/reports/page.tsx` (5 buttons, including the off-brand blue one
+now correctly mapped to the `outline` token, plus the stat tiles and filter bar) and
+`app/dashboard/alerts/page.tsx` (3 buttons, 1 status pill). A component library adopted nowhere is
+exactly the kind of superficial deliverable this project's own principles warn against, so real
+call sites were migrated in the same change, not left for later.
+
+**Verification approach:** no component-render test infrastructure exists in this repo (`vitest`
+config is `environment: "node"`, no `@testing-library/react`/jsdom) — adding a whole new test
+stack for a presentation-only change was judged disproportionate. Instead: `tsc --noEmit` and
+`eslint` both clean, a full production `next build` succeeded, and then the actual UI was
+live-verified in a real Chromium browser (via Playwright) against the running dev server —
+logged in with the seeded admin account, screenshotted the documents list (confirming the new
+icon+label+colour status pills), the document detail modal in both `active` and `revoked` states
+(confirming `danger`/`success`/`ghost` button variants), the sign-document panel (confirming
+`primary`/`solid` variants and the `loading` prop), and the alerts create-form and published-alert
+card. No console/page errors observed in any of these flows.
+
+**One incidental fix caught and corrected along the way:** while using the demo credentials to log
+in for this check, discovered the `.env.example` commit made two tasks ago in this same run had
+invented a demo password (`demopassword123!`) instead of checking `scripts/seed.ts`'s actual
+fallback (`ChekkamDemo123!`). Fixed in a separate small commit immediately — the kind of small
+factual error that's easy to introduce when writing documentation from memory instead of checking
+the source, worth calling out rather than quietly folding into a larger commit.
+
+**Not done / deliberately deferred:** `AppShell` (the existing `app/dashboard/layout.tsx` already
+serves this role adequately; refactoring a working layout was judged higher-risk than the
+remaining task value under time pressure). Mirroring these tokens into the Flutter theme
+(`chekkam/lib/app/theme.dart`) — cross-repo, and this session's remaining time was better spent
+finishing Task 11. Migrating every remaining page (`safety-alerts`, `check`, `verify`,
+auth pages) — the three migrated pages were chosen as the highest-duplication, highest-value
+targets; the pattern is now established for whoever picks up the rest.
+
 ## P0 checklist (Final Build Spec §10), current honest state
 
 - [x] No CORS errors for the production Vercel origin (code + one live check confirm this specific case; full re-verification blocked on Railway catching up)
@@ -142,3 +205,4 @@ three flagged-unrestricted tables plus the two new ones were specifically verifi
 - `lib/crypto/sign.ts` (`getChekkamReceiptSigningKey`), `lib/crypto/ids.ts` (`generateVerificationId` prefix param) — both additive
 - `lib/crypto/token.ts` (+ test), `app/api/institutions/public-keys/route.ts`, `app/api/documents/[id]/offline-token/route.ts` — Task 8, offline verification backend primitives
 - `lib/documents/pdf-signature.ts` (+ test), `app/api/documents/pdf-signature-check/route.ts`, `test-fixtures/pdf-signatures/*.pdf` — Task 9, PDF digital-signature verification. New dependency: `node-forge` (+ `@types/node-forge` dev-only)
+- `components/ui/{Button,StatusBadge,States,Card,index}.ts(x)` — Task 10, shared UI components; adopted in `app/dashboard/{documents,reports,alerts}/page.tsx`
