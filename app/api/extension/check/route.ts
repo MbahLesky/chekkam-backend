@@ -113,6 +113,7 @@ export async function POST(req: NextRequest) {
       reasons: analysis.reasons,
       recommended_action: analysis.recommended_action,
       needs_human_review: true,
+      source: analysis.source,
     });
   } catch (err) {
     return toErrorResponse(err, requestLang);
