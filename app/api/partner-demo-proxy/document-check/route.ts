@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { ConfigError, ValidationError, toErrorResponse } from "@/lib/errors";
+import { getSelfOrigin } from "@/lib/self-origin";
 
 const RATE_LIMIT = 20;
 const RATE_WINDOW_SECONDS = 10 * 60;
@@ -45,8 +46,7 @@ export async function POST(req: NextRequest) {
       outgoingForm.set("verification_id", verificationId);
     }
 
-    // Deliberately NOT process.env.APP_BASE_URL — see check/route.ts's comment.
-    const base = req.nextUrl.origin;
+    const base = getSelfOrigin(req);
     // See check/route.ts's comment: the real path is /api/v1/partner/..., not /v1/partner/...
     const upstream = await fetch(`${base}/api/v1/partner/document-check`, {
       method: "POST",

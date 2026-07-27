@@ -3,6 +3,7 @@ import { z } from "zod";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { ConfigError, ValidationError, toErrorResponse } from "@/lib/errors";
 import { parseBody } from "@/lib/validation/parse";
+import { getSelfOrigin } from "@/lib/self-origin";
 
 const bodySchema = z.object({ content: z.string().min(1) });
 const RATE_LIMIT = 20;
@@ -39,12 +40,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = parseBody(bodySchema, await req.json());
-    // Deliberately NOT process.env.APP_BASE_URL — that's the public-facing
-    // URL used for QR/webhook links and can point at a different deployed
-    // instance than the one serving this request. This proxy calls the
-    // SAME running instance, so it derives the origin from the incoming
-    // request itself.
-    const base = req.nextUrl.origin;
+    const base = getSelfOrigin(req);
 
     // The route lives at app/api/v1/partner/check/route.ts, which Next.js's
     // App Router resolves to /api/v1/partner/check — despite this route's
