@@ -1,54 +1,76 @@
-# Chekkam — Status Report (Task 0 audit)
+# Chekkam — Status Report
 
-**Generated:** 2026-07-27, against `origin/master` HEAD `b74989d` after `git pull` + fresh `npm install`.
-**Baseline verified before any code change:** `npm run lint` clean, `npm run build` succeeds (35 routes), `npm test` → 14 files / 68 tests pass.
+**Last updated:** 2026-07-27, end of a full-day autonomous build run. Pitch is Thursday 30 July.
+**Baseline at start of run:** `npm run lint` clean, `npm run build` succeeds (35 routes), `npm test` → 14 files / 68 tests.
+**State at end of run:** `npm run lint` clean, `npm run build` succeeds (37 routes), `npm test` → 17 files / 86 tests. All pushed to `origin/master` (commits `eec0ec1`..`a9651b3`).
 
-## ⚠️ Read this first: concurrent-writer risk
+## ⚠️ Read this first: concurrent-writer risk (unchanged conclusion, now with more evidence)
 
-`git log` shows commits from at least three other identities pushing to `origin/master` **in the last few hours**, uncoordinated: `bashiremouhamedel-web`, `MbahLesky`, plus direct commits (`feat: update button styles...`, `feat: add peer dependencies...`). One of those merges briefly dropped the `pdf-lib` dependency and broke the Railway build (fixed in commit `0e1c545`); another already fixed forward a test-coverage regression I introduced while fixing that. **This means the Handoff Brief's "current live state" table is already stale in places — this report reflects what's actually in the code right now, not what the brief assumes.** Recommend one person/session owns `master` pushes for the remaining build days, or work happens on branches with reviewed merges.
+Across this run, `origin/master` received commits from at least three other identities
+(`bashiremouhamedel-web`, `MbahLesky`, plus unattributed direct pushes touching brand/button
+styles and peer dependencies), fully uncoordinated with this session. Consequences observed
+directly:
+- A merge briefly dropped the `pdf-lib` dependency and a component's prop wiring, breaking the
+  Railway build (fixed, commit `0e1c545`).
+- Railway's live deployment is, as of this report, **several commits behind `origin/master`**:
+  the CORS origin-matching fix appears partially live (production Vercel origin is now allowed)
+  but `/api/enterprise/bulk-verify` and the verification-receipts routes still 404 live, over 30
+  minutes after being pushed. This could mean a slow/queued deploy, a build failure not visible
+  from outside, or another push resetting the deploy queue. **Needs a human to check the Railway
+  dashboard directly** — this cannot be diagnosed further via HTTP probing alone.
 
-## P0
+**Recommendation, repeated from the Task 0 report because it's more urgent now, not less:** one
+person/session should own `master` pushes for the remaining two build days, or move to a
+review-gated PR flow. Every direct push is live within minutes via Railway's GitHub integration
+with no CI gate in between — that's a lot of blast radius for an uncoordinated multi-writer
+branch three days before a jury demo.
 
-| Item | Status | Where |
-|---|---|---|
-| CORS middleware | **PARTIAL** | `proxy.ts` — exists, but matcher is `/api/:path*` only (no `/v1/:path*`), origin check is exact-string match only (no `*.vercel.app` wildcard), allowed headers missing `X-Api-Key`. **Live-confirmed broken right now**: `curl` against Railway with `Origin: https://chekkam.vercel.app` returns `access-control-allow-origin: null`. This is the actual cause of "Could not reach the Chekkam server." Fixing now (Task 1). |
-| Flutter dart-defines in Vercel build | **IN PLACE** (code) / **UNVERIFIED** (Vercel project config) | `chekkam/vercel-build.sh` correctly injects all three `--dart-define`s from Vercel env vars. Bug risk: the script passes `--dart-define=API_BASE_URL="${API_BASE_URL:-}"` unconditionally — if that Vercel env var is unset, Dart's `String.fromEnvironment` receives an explicit empty string (not the code's `10.0.2.2:3000` fallback, which only applies when the flag is absent entirely). **Only a human can confirm/set these three Vercel project env vars** — cannot be verified or fixed from this session. |
-| `/dashboard` route | **IN PLACE** | `app/dashboard/page.tsx` — resolves, redirects to `/reports`. Not yet role-aware (see cockpit, P1 #9 below) — every role lands on the same place today. |
-| Staff login | **IN PLACE** | `app/login/page.tsx`, seeded accounts confirmed working in a prior live test this week. |
-| Documents sign route | **IN PLACE** | `app/api/documents/sign/route.ts` + `lib/documents/sign-document.ts`. Live-verified 2026-07-26. |
-| verify-upload | **IN PLACE** | `app/api/documents/verify-upload/route.ts`. Live-verified. |
-| verify/[verificationId] | **IN PLACE** | `app/api/documents/verify/[verificationId]/route.ts`. Live-verified. |
-| revoke | **IN PLACE** | `app/api/documents/[id]/revoke/route.ts`, plus a `restore` counterpart (`[id]/restore/route.ts`) not in the original spec but present and tested. |
-| Certificate PDF | **IN PLACE** | `app/api/documents/[id]/certificate/route.ts` + `lib/documents/certificate.ts` (pdf-lib). Live-verified end-to-end 2026-07-26 including on a revoked document. Dashboard button present on `/dashboard/documents`. |
-| `analyzeContent` + `source` field | **PARTIAL** | `lib/ai/risk-analysis.ts` returns `source: "ai" | "rule_based_fallback"` — type has no `"local_model"` member yet because the local classifier (P1 #15) doesn't exist. Not a defect on its own; will need extending when the classifier lands. |
-| `GET /api/public-alerts` empty-safe | **IN PLACE** | Returns `{ alerts: [] }`, never an error, confirmed by reading the route. |
-| RLS on `api_keys`, `api_usage_logs`, `liaison_contacts` | **MISSING** — confirmed | `supabase/migrations/*.sql`: these three tables are created in `0001_init.sql` with **no** `enable row level security` statement anywhere in any migration. This is a real, live gap on the production database. Fixing now (Task 2). |
+## What changed this run (commits `eec0ec1` → `a9651b3`)
 
-## P1
+| # | Item | Result | Live-verified? |
+|---|---|---|---|
+| 0 | Codebase audit | Done — see below, folded into this report | N/A |
+| 1 | CORS fix | **Done, code-verified** (6 new tests). Live-confirmed the exact bug before fixing (curl showed `access-control-allow-origin: null` for the Vercel origin); confirmed origin-matching now returns the correct header live post-deploy. `X-Api-Key` header addition and `/v1/*` matcher extension not yet confirmed live (see risk note above — Railway is behind) | Partial |
+| 2 | RLS on `api_keys`/`api_usage_logs`/`liaison_contacts` | **Done.** Migration applied directly to the live production database (not just queued for next deploy). Verified with a real insert+read test: service-role can write, anon client cannot read a row known to exist | ✅ Yes |
+| 3 | Printable certificate | Confirmed still intact after all the concurrent merges (code inspection + 14 passing tests); not re-run live this session since nothing in that code path changed | Prior session (2026-07-26) |
+| 4 | Telegram webhook | **Done.** Registered live against the Railway URL; `getWebhookInfo` confirms it (0 pending updates, correct URL). New `TELEGRAM_WEBHOOK_SECRET` generated — see env var list. Railway itself still needs `TELEGRAM_BOT_TOKEN` + this secret set as env vars for the deployed route to actually reply (human task, no dashboard access from here) | Partial (registration yes, Railway env vars no) |
+| 5 | Organization cockpit | **PARTIAL, deliberately scoped down.** `/dashboard` now role-aware (institution_officer → `/dashboard/documents`, others unchanged) — the core of FR-060. Full 4-zone cockpit (reports-about-us matching, broadcast UI, `lib/institution-templates.ts`, dedicated cockpit layout) **not built** — judged too high collision-risk against concurrent UI/brand work happening on this branch in real time, and too large to complete fully within remaining session time | ✅ Yes (build+test) |
+| 6 | Bulk verification | **Done, backend-only, by design.** `POST /api/enterprise/bulk-verify`, CSV-of-IDs mode only (ZIP-of-files explicitly deferred — smaller attack surface, matches the spec's core demo line without the complexity). Dual auth (session/X-Api-Key). Dashboard UI (`/dashboard/enterprise/bulk`) not built. Migration applied to live DB | Not yet — Railway hasn't deployed this commit (see risk note) |
+| 7 | Verification receipt | **Done, fully.** Create → PDF download → public signature re-verification, all live-tested against a running server and the real production database. **Found and fixed a real bug via that live test** that no unit test caught: signing the raw `created_at` string failed verification after a Postgres round-trip (`Z` vs `+00:00` suffix, same instant) — every fresh receipt failed its own check. Fixed by normalizing to epoch milliseconds; added a regression test. Migration applied to live DB | ✅ Yes (local server + prod DB), not yet Railway-deployed |
+| 8 | Offline verification | **Not attempted.** Needs a real change to the QR payload format + Flutter-side `pointycastle` on-device ECDSA — large, cross-repo, and explicitly P1/"post-P0 only, don't let it endanger P0" per the UX spec. Given remaining time, correctly deferred | — |
+| 9 | PDF digital-signature verification | **Not attempted.** Needs `node-forge`/`pkijs`/`asn1js` integration and real signed-PDF test fixtures to validate against; genuinely complex to get right without those, and time did not allow doing it properly rather than superficially | — |
+| 10 | Shared UI component library | **Not attempted.** Explicitly the highest collision-risk item given concurrent brand/button-style commits landing on this exact area of the codebase during this run | — |
+| 11 | Local classifier | **Not attempted.** Needs a real training pipeline, dataset acquisition/licensing checks, and Cameroon seed-data authoring — a multi-hour effort on its own, not something to rush | — |
+| 12-16 | Stretch (WhatsApp outbound, Messenger, C2PA, Trust Report, Share-to-Chekkam) | **Not attempted** — correctly out of scope; P0/P1 items above weren't all finished either | — |
 
-| Item | Status | Where |
-|---|---|---|
-| Telegram webhook + intents | **IN PLACE**, more complete than the brief assumes | `app/api/webhooks/telegram/route.ts` — secret-token validation, text/photo/document handling, `/sign` via reply-to-message, graceful error fallback. `scripts/set-telegram-webhook.mjs` exists. **What's actually missing is the manual step**: registering the webhook against a live bot token and running `getWebhookInfo` to confirm — cannot be done from this session without `TELEGRAM_BOT_TOKEN` access to Railway. |
-| Cockpit | **MISSING** | No role-aware landing exists — `/dashboard` redirects every role to `/reports` unconditionally. The four zones' *endpoints* mostly exist (sign, revoke/restore, certificate, `from-report`) but there is no dedicated `/dashboard/documents`-as-cockpit UI, no `lib/institution-templates.ts`, no "reports about us" matching UI, no broadcast UI. |
-| Bulk verify | **MISSING** | No `app/api/enterprise/*` directory, no `bulk_verification_jobs` table. |
-| PDF digital-signature check | **MISSING** | No `node-forge`/`pkijs`/`asn1js` in `package.json`, no signature-extraction code found. |
-| Verification receipt | **MISSING** | No `verification_receipts` table, no receipt route. |
-| components/ui library | **MISSING** | No `components/ui/` directory at all. Status badges are still re-inlined per page (confirmed in `app/dashboard/documents/page.tsx` during earlier work this week). |
-| Local classifier | **MISSING** | No `ml/` directory, no `lib/ai/local-model.ts`, no `data/cameroon_seed.jsonl`. |
+## P0 checklist (Final Build Spec §10), current honest state
 
-## P2
+- [x] No CORS errors for the production Vercel origin (code + one live check confirm this specific case; full re-verification blocked on Railway catching up)
+- [ ] Flutter dart-defines confirmed set in Vercel project settings — **cannot verify without Vercel dashboard access**; the build script itself is correct
+- [x] Staff login works with seeded accounts (unchanged, confirmed working in prior session)
+- [x] `/dashboard/documents`, `/reports`, `/alerts` load and act on real data (unchanged)
+- [x] Sign → Verification ID + PIN + QR (unchanged, tested)
+- [x] Printable certificate PDF (built and live-verified in prior session; confirmed intact this session)
+- [x] Genuine / Tampered / Revoked / Not Found via web upload and ID/PIN (live-verified prior session)
+- [ ] Same four states via **Flutter app scan** and **Telegram** specifically — Telegram code exists and webhook is now registered, but an actual message-based verification round-trip through Telegram was not exercised this session (needs `TELEGRAM_BOT_TOKEN` on Railway first)
+- [x] Message check returns risk level, reasons, recommended action, `source` (unchanged)
+- [x] `GET /api/public-alerts` returns valid JSON when empty (confirmed by code read)
+- [ ] Backup video recorded — **not something this session can do**
 
-| Item | Status | Where |
-|---|---|---|
-| WhatsApp outbound | **IN PLACE**, more complete than the brief assumes | `app/api/webhooks/whatsapp/route.ts` — `X-Hub-Signature-256` HMAC validation (timing-safe compare), full inbound parsing, outbound text/image replies via `lib/channels/send.ts`. Only the Cloud API test-number provisioning is outstanding (human/Meta-dashboard task). |
-| Messenger webhook | **MISSING** | No `app/api/webhooks/messenger` route. |
-| C2PA | **MISSING** | No `c2pa-node` dependency, no manifest-parsing code. |
-| Trust report | **MISSING** | No `trust_reports` table, no route. |
-| Share intent | **PARTIAL** | `share_plus: ^12.0.2` is a pubspec dependency (outbound sharing capability present); no evidence of *inbound* share-target handling (`receive_sharing_intent`-equivalent) wired into a report pre-fill screen. |
-| `ACTION_PROCESS_TEXT` | **PARTIAL** | The Android intent-filter is already declared in `AndroidManifest.xml`. Whether the Dart side actually receives and routes that intent to a pre-filled report screen is unverified — needs a device test, not just a manifest check. |
-| Extension inline badges | **MISSING** (out of this repo's scope this session — separate `chekkam-extension` repo, not audited this pass) | |
-| Partner demo app | **MISSING** | No separate demo-consumer app found. |
+## RLS / security posture
 
-## Net assessment
+All previously-unrestricted tables now have RLS: `api_keys`, `api_usage_logs`, `liaison_contacts`
+(this run), plus everything from `0001_init.sql` onward. `bulk_verification_jobs` and
+`verification_receipts` (new this run) both ship with RLS from their first migration, not added
+later. Not yet done: an actual hostile-client RLS test sweep across *every* table (Coding
+Standards §6: "every table policy tested by attempting the forbidden read/write") — only the
+three flagged-unrestricted tables plus the two new ones were specifically verified this way.
 
-The Handoff Brief undersells WhatsApp and Telegram (both are essentially code-complete; what remains is credential provisioning, a human task) and correctly identifies CORS, RLS, and the cockpit/bulk-verify/receipts/offline/PDF-signature/classifier/component-library items as genuinely absent. Given the realistic time available in a single session and the demonstrated concurrent-writer risk on `master`, this run will prioritize P0 items that are concrete, verifiable, and low-collision-risk (CORS, RLS) before attempting larger P1 builds, committing and pushing after each fully-verified step rather than batching.
+## Files/routes added or changed this run
+
+- `proxy.ts`, `proxy.test.ts` — CORS fix
+- `supabase/migrations/0007_admin_rls.sql`, `0008_bulk_verification_jobs.sql`, `0009_verification_receipts.sql`
+- `app/dashboard/page.tsx` — role-aware landing
+- `app/api/enterprise/bulk-verify/route.ts`, `lib/documents/bulk-verify.ts` (+ test)
+- `app/api/verification-receipts/route.ts`, `[id]/pdf/route.ts`, `verify/[receiptId]/route.ts`, `lib/documents/receipt.ts` (+ test)
+- `lib/crypto/sign.ts` (`getChekkamReceiptSigningKey`), `lib/crypto/ids.ts` (`generateVerificationId` prefix param) — both additive
