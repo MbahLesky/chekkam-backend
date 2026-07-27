@@ -345,7 +345,7 @@ function SignDocumentPanel({
     <div className="shrink-0">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="rounded-[var(--radius-chekkam-sm)] bg-gradient-lagoon px-4 py-2 text-sm font-semibold text-white shadow-chekkam-sm"
+        className="rounded-[var(--radius-chekkam-sm)] bg-gradient-hero px-4 py-2 text-sm font-semibold text-white shadow-chekkam-sm"
       >
         {open ? t("cancel") : t("signNewDocument")}
       </button>

@@ -231,7 +231,7 @@ export default function ReportsDashboardPage() {
                     {t("dismiss")}
                   </button>
                 </div>
-                <button onClick={() => promoteToAlert(report)} disabled={promoting === report.id} className="rounded-[var(--radius-chekkam-sm)] bg-gradient-lagoon px-2.5 py-1 text-xs font-semibold text-white shadow-chekkam-sm disabled:opacity-60">
+                <button onClick={() => promoteToAlert(report)} disabled={promoting === report.id} className="rounded-[var(--radius-chekkam-sm)] bg-gradient-hero px-2.5 py-1 text-xs font-semibold text-white shadow-chekkam-sm disabled:opacity-60">
                   {promoting === report.id ? t("promoting") : t("promoteToAlert")}
                 </button>
               </div>

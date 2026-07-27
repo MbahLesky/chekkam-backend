@@ -102,7 +102,7 @@ export default function SafetyAlertsAdminPage() {
             <button
               onClick={() => approve(alert.id)}
               disabled={busyId === alert.id}
-              className="mt-3 rounded-[var(--radius-chekkam-sm)] bg-gradient-lagoon px-3.5 py-1.5 text-xs font-semibold text-white shadow-chekkam-sm disabled:opacity-60"
+              className="mt-3 rounded-[var(--radius-chekkam-sm)] bg-gradient-hero px-3.5 py-1.5 text-xs font-semibold text-white shadow-chekkam-sm disabled:opacity-60"
             >
               {busyId === alert.id ? t("approving") : t("approveNotify")}
             </button>
