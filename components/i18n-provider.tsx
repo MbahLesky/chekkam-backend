@@ -204,6 +204,15 @@ const strings = {
     authSideBody:
       "Every document signed, revoked, or published here is logged - human review comes before anything reaches the public.",
     staffDashboard: "Chekkam staff dashboard",
+    poweredByChekkam: "Powered by Chekkam",
+    widgetCheckTab: "Check a message",
+    widgetVerifyTab: "Verify a document",
+    widgetCheckIntro: "Paste a suspicious message or link to get an instant risk check.",
+    widgetVerifyIntro: "Look up a verification ID/PIN, or upload the file itself.",
+    resultSource: "Result source",
+    sourceAi: "AI",
+    sourceLocalModel: "Local model",
+    sourceRuleBasedFallback: "Rule-based",
   },
   fr: {
     langName: "Français",
@@ -404,6 +413,15 @@ const strings = {
     authSideBody:
       "Chaque document signé, révoqué ou publié ici est journalisé - la revue humaine précède toute publication.",
     staffDashboard: "Tableau de bord Chekkam",
+    poweredByChekkam: "Propulsé par Chekkam",
+    widgetCheckTab: "Vérifier un message",
+    widgetVerifyTab: "Vérifier un document",
+    widgetCheckIntro: "Collez un message ou un lien suspect pour une analyse de risque instantanée.",
+    widgetVerifyIntro: "Recherchez un ID/PIN de vérification, ou téléversez le fichier.",
+    resultSource: "Source du résultat",
+    sourceAi: "IA",
+    sourceLocalModel: "Modèle local",
+    sourceRuleBasedFallback: "Basé sur des règles",
   },
 } as const;
 

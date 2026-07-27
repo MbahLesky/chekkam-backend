@@ -316,7 +316,10 @@ export default function PricingPage() {
           <Link href="/signup" className="rounded-[var(--radius-chekkam-sm)] bg-gradient-hero px-5 py-2.5 font-semibold text-white shadow-chekkam-sm transition hover:brightness-110">
             Register an institution
           </Link>
-          <Link href="/" className="rounded-[var(--radius-chekkam-sm)] border border-chekkam-primary px-5 py-2.5 font-semibold text-chekkam-primary transition hover:bg-chekkam-tint">
+          <Link href="/widget/embed" className="rounded-[var(--radius-chekkam-sm)] border border-chekkam-primary px-5 py-2.5 font-semibold text-chekkam-primary transition hover:bg-chekkam-tint">
+            Get the embeddable widget →
+          </Link>
+          <Link href="/" className="rounded-[var(--radius-chekkam-sm)] border border-chekkam-border px-5 py-2.5 font-semibold text-chekkam-muted transition hover:bg-chekkam-tint">
             Back to Chekkam
           </Link>
         </div>
