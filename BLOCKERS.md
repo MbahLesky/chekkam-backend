@@ -57,10 +57,20 @@ Code is complete (signature validation, full inbound/outbound) — the remaining
 a Meta Business dashboard task (test number, app secret, verify token, allow-listed recipients),
 which no amount of code access resolves.
 
+## 5. `/api/documents/verify-upload` likely has the same "malformed body → 500" bug just fixed in Task 9
+
+While building `app/api/documents/pdf-signature-check/route.ts`, live-testing a POST with no
+multipart body found that `req.formData()` throws when the request has no body/content-type at
+all, and that thrown error isn't a recognized `ValidationError` — it falls through to a generic
+500 instead of a 400. Fixed in the new route by wrapping the call. **Not fixed** in the
+pre-existing `app/api/documents/verify-upload/route.ts`, which has the identical
+`const form = await req.formData();` pattern unguarded — that route was not touched this task to
+keep the change scoped to Task 9. Worth a two-line fix (wrap in try/catch, same as the new route)
+before the pitch, since it's citizen-facing and a malformed request is not an exotic input.
+
 ## Not blockers, but explicitly out of scope this run (see STATUS_REPORT.md for why)
 
-Offline verification (Task 8), PDF digital-signature forensics (Task 9), the shared UI component
-library (Task 10), and the local ML classifier (Task 11) were not attempted — each is a
-genuinely multi-hour build in its own right, and none was abandoned mid-way; they simply were
-not started, to avoid shipping a half-finished version of something this consequential this
-close to the pitch.
+The shared UI component library (Task 10) and the local ML classifier (Task 11) were not
+attempted — each is a genuinely multi-hour build in its own right, and neither was abandoned
+mid-way; they simply were not started yet. Offline verification (Task 8) and PDF
+digital-signature verification (Task 9) were both completed this run — see STATUS_REPORT.md.
