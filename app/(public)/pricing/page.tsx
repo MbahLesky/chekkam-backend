@@ -116,7 +116,7 @@ const OUTLOOK = [
 
 export default function PricingPage() {
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="force-light flex flex-1 flex-col">
       <section className="relative overflow-hidden bg-gradient-hero px-6 py-20 text-center text-white">
         <div className="relative mx-auto max-w-2xl">
           <Link href="/" className="text-sm text-white/70 hover:text-white">

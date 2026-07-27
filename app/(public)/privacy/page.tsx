@@ -15,7 +15,7 @@ export const metadata = { title: "Privacy Policy — Chekkam" };
 
 export default function PrivacyPolicyPage() {
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 py-16">
+    <div className="force-light mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 py-16">
       <Link href="/" className="text-sm font-medium text-chekkam-muted hover:text-chekkam-primary">
         ← Chekkam
       </Link>

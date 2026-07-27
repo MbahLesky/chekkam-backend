@@ -94,3 +94,51 @@ body {
 .bg-gradient-seal {
   background-image: linear-gradient(135deg, var(--chekkam-primary), var(--chekkam-ink));
 }
+
+/* Forces the light-mode palette regardless of the visitor's OS/browser
+   dark-mode setting. For document-style pages (pricing, privacy, terms)
+   meant to be read consistently everywhere — including on a juror's
+   unknown device — rather than adapting per-viewer.
+
+   Redeclares BOTH the base --chekkam-* tokens AND their --color-chekkam-*
+   theme aliases. Tailwind's utilities (bg-chekkam-surface-raised etc.)
+   compile to var(--color-chekkam-surface-raised), and that name is only
+   ever declared once, on :root, inside the @theme inline block above —
+   var() resolves --chekkam-surface-raised as seen AT :root, its ancestor,
+   which a child .force-light element can never override (inheritance
+   only flows parent -> child, never the reverse). Redeclaring only the
+   base names left every Tailwind color utility still dark — confirmed
+   live via a dark-color-scheme screenshot before this fix. */
+.force-light {
+  color-scheme: light;
+  --chekkam-deep: #990000;
+  --chekkam-primary: #f15a29;
+  --chekkam-bright: #ff7a3d;
+  --chekkam-ink: #030303;
+  --chekkam-muted: #4a4a4a;
+  --chekkam-faint: #8a8080;
+  --chekkam-surface: #fffffe;
+  --chekkam-surface-raised: #ffffff;
+  --chekkam-tint: #f7f1f1;
+  --chekkam-border: #e8dede;
+  --status-success: #1e8e5a;
+  --status-warning: #a6790b;
+  --status-danger: #990000;
+  --status-neutral: #7c7272;
+  --color-chekkam-deep: #990000;
+  --color-chekkam-primary: #f15a29;
+  --color-chekkam-bright: #ff7a3d;
+  --color-chekkam-ink: #030303;
+  --color-chekkam-muted: #4a4a4a;
+  --color-chekkam-faint: #8a8080;
+  --color-chekkam-surface: #fffffe;
+  --color-chekkam-surface-raised: #ffffff;
+  --color-chekkam-tint: #f7f1f1;
+  --color-chekkam-border: #e8dede;
+  --color-status-success: #1e8e5a;
+  --color-status-warning: #a6790b;
+  --color-status-danger: #990000;
+  --color-status-neutral: #7c7272;
+  background: #fffffe;
+  color: #030303;
+}
