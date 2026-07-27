@@ -1,10 +1,11 @@
 # Chekkam — Status Report
 
-**Last updated:** 2026-07-27, continuing the autonomous build run (Task 10). Pitch is Thursday 30 July.
+**Last updated:** 2026-07-27, continuing the autonomous build run (Task 11 — all 12 P0/P1/P2 tasks now attempted). Pitch is Thursday 30 July.
 **Baseline at start of run:** `npm run lint` clean, `npm run build` succeeds (35 routes), `npm test` → 14 files / 68 tests.
 **State after Task 8 (offline verification):** `npm run lint` clean, `npm run build` succeeds (37 routes), `npm test` → 17 files / 86 tests. All pushed to `origin/master` (commits `eec0ec1`..`a9651b3`).
 **State after Task 9 (PDF digital-signature verification):** `npm run lint` clean, `npm run build` succeeds (38 routes), `npm test` → 19 files / 102 tests (exact numbers from the actual local run, not carried forward from memory).
 **State after Task 10 (shared UI components):** `npm run lint` clean, `npm run build` succeeds (38 routes — presentation-only change, no new routes), `npm test` → 19 files / 102 tests unchanged (no new automated tests — see rationale below). Live-verified in a real browser against the running dev server (screenshots taken, not just compiled).
+**State after Task 11 (local classifier):** `npm run lint` clean, `npm run build` succeeds (38 routes), `npm test` → 20 files / 110 tests. New migration `0010_ai_predictions_local_model_source.sql` applied to the live production DB (verified with a real insert+cleanup). Live-verified via real HTTP requests to `/api/extension/check` with `OPENAI_API_KEY` overridden empty, confirming `source: "local_model"` actually lands in the live `ai_predictions` table, not just in a unit test.
 
 ## ⚠️ Read this first: concurrent-writer risk (unchanged conclusion, now with more evidence)
 
@@ -42,7 +43,7 @@ branch three days before a jury demo.
 | 8 | Offline verification | **Done, backend primitives only, as scoped.** `lib/crypto/token.ts` (versioned, base64url, fixed-field-order signed token, 7 tests), `GET /api/institutions/public-keys` (public key cache endpoint), `GET /api/documents/:id/offline-token` (issues a token + QR). Deliberately does not touch `documents.qr_payload` or the existing `/verify/:id` flow — purely additive. Live-tested with real signing keys. Flutter-side on-device verification (`pointycastle`, key caching, airplane-mode UX, the "revocation not checked" caveat) is **not built** — cross-repo, large, explicitly P1 | ✅ Yes (backend only; no Flutter client exists yet to test end-to-end) |
 | 9 | PDF digital-signature verification | **Done.** See detailed writeup below | ✅ Yes (local server, real third-party fixtures) |
 | 10 | Shared UI component library | **Done, scoped to real duplication.** See detailed writeup below | ✅ Yes (browser screenshots against live dev server) |
-| 11 | Local classifier | **Not attempted.** Needs a real training pipeline, dataset acquisition/licensing checks, and Cameroon seed-data authoring — a multi-hour effort on its own, not something to rush | — |
+| 11 | Local classifier | **Done, scope narrowed honestly.** See detailed writeup below | ✅ Yes (live HTTP request + live DB row confirmed) |
 | 12-16 | Stretch (WhatsApp outbound, Messenger, C2PA, Trust Report, Share-to-Chekkam) | **Not attempted** — correctly out of scope; P0/P1 items above weren't all finished either | — |
 
 ## Task 9 detail — PDF digital-signature verification (FR-101)
@@ -172,6 +173,67 @@ finishing Task 11. Migrating every remaining page (`safety-alerts`, `check`, `ve
 auth pages) — the three migrated pages were chosen as the highest-duplication, highest-value
 targets; the pattern is now established for whoever picks up the rest.
 
+## Task 11 detail — Local classifier (FR-026/027)
+
+**Scope narrowed honestly, upfront:** the mega-prompt asked for a classifier trained on 100-150
+Cameroon EN/FR/Pidgin examples. What got built predicts `risk_level` (low/medium/high) only —
+not the full 9-category, multi-indicator schema `analyzeContent()`'s AI tier produces. With ~124
+examples, a 9-way category classifier would not be honestly trainable (most categories would have
+single-digit example counts); `category`/`indicators`/`reasons`/`suspicious_phrases` in this
+tier's output are the same rule-based keyword detection the existing fallback already used,
+factored into a shared `detectIndicators()` helper so there is still only one implementation of
+"what counts as a suspicious signal," never two.
+
+**Dataset (`data/cameroon_seed.jsonl`, 124 rows):** self-authored by this session, modeled on
+publicly known Cameroonian scam patterns — mobile money fraud, fake MINPOSTEL/GCE-board notices,
+fake recruitment, phishing links, impersonation, leaked-exam scams — split roughly EN 51 / FR 37
+/ Pidgin 36, and low 47 / medium 28 / high 49. **This is not a collected/reviewed real dataset,**
+and the Pidgin examples were written by the AI assistant, not a native speaker. `ml/METRICS.md`
+states this limitation before showing a single number, per CLAUDE.md §10.4 ("training datasets,
+Cameroon examples... need review before any accuracy/sovereignty claim").
+
+**Pipeline:** `ml/train.py` — TF-IDF (unigram bag-of-words, raw count × smoothed IDF,
+L2-normalized; bigrams deliberately excluded as overfit-prone at this dataset size) + multinomial
+logistic regression via full-batch gradient descent, implemented in plain numpy (no scikit-learn
+dependency) specifically so the exact math is known and portable. Exports `ml/model.json` (337
+vocabulary terms, ~34KB). `lib/ai/local-model.ts` reimplements the identical tokenizer/TF-IDF/
+softmax scoring in pure TypeScript, loaded via a static JSON import (no filesystem read, no
+Python/network dependency at runtime).
+
+**The port was independently verified, not assumed correct:** four test cases were scored in
+Python directly against `model.json`, and those exact probability vectors (to 3 decimal places)
+are asserted in `lib/ai/local-model.test.ts` — if the TypeScript tokenizer or math ever drifts
+from the Python training code, this test catches it immediately rather than silently producing
+different numbers in production than what was measured in `ml/METRICS.md`.
+
+**Wired into `analyzeContent()` as a genuine third tier**, not a parallel path: AI (if
+`OPENAI_API_KEY` set) → local model (this task) → pure keyword-only rule-based (now the final
+safety net, exercised when the AI call fails *and* the local scorer hits an unexpected runtime
+error — not when a file is "missing," since `model.json` is a committed static import, always
+present in a successful build). Required a new migration,
+`0010_ai_predictions_local_model_source.sql`, widening the `ai_predictions.source` CHECK
+constraint — applied directly to the live database (verified with a real insert+delete before
+trusting it, after first querying the live constraint's actual auto-generated name rather than
+guessing).
+
+**Live-verified, not just unit-tested:** started the dev server with `OPENAI_API_KEY` overridden
+to empty, POSTed a real scam-style message and a real benign message to
+`POST /api/extension/check`, got back correctly-differentiated `risk_level`/`risk_score`/
+`category` in both cases, then queried the live `ai_predictions` table directly and confirmed the
+row's `source` column actually reads `local_model` — proving the full path (HTTP → analyzeContent
+→ local model → DB write) works, not just that the exported function returns a plausible value in
+isolation.
+
+**Test-set metrics (illustrative only, see `ml/METRICS.md`'s full caveats):** 87.5% accuracy on a
+24-row held-out split — too small to be a real accuracy claim, but the confusion matrix shows the
+one systematic weak spot honestly: `medium`-risk messages (only 5 in the test split) are
+sometimes over-classified as `high`, which is the safer failure direction for a citizen-facing
+tool, not the dangerous one.
+
+**Not done:** category/indicator learning (see scope-narrowing note above); any claim beyond what
+`ml/METRICS.md` states — this must not be presented in the pitch as a validated, production-grade
+Cameroon-language model without the human review CLAUDE.md §10.4 requires.
+
 ## P0 checklist (Final Build Spec §10), current honest state
 
 - [x] No CORS errors for the production Vercel origin (code + one live check confirm this specific case; full re-verification blocked on Railway catching up)
@@ -206,3 +268,4 @@ three flagged-unrestricted tables plus the two new ones were specifically verifi
 - `lib/crypto/token.ts` (+ test), `app/api/institutions/public-keys/route.ts`, `app/api/documents/[id]/offline-token/route.ts` — Task 8, offline verification backend primitives
 - `lib/documents/pdf-signature.ts` (+ test), `app/api/documents/pdf-signature-check/route.ts`, `test-fixtures/pdf-signatures/*.pdf` — Task 9, PDF digital-signature verification. New dependency: `node-forge` (+ `@types/node-forge` dev-only)
 - `components/ui/{Button,StatusBadge,States,Card,index}.ts(x)` — Task 10, shared UI components; adopted in `app/dashboard/{documents,reports,alerts}/page.tsx`
+- `data/cameroon_seed.jsonl`, `ml/train.py`, `ml/model.json`, `ml/METRICS.md`, `lib/ai/local-model.ts` (+ test) — Task 11, local classifier. `lib/ai/risk-analysis.ts` refactored (`detectIndicators` extracted, `localModelFallback` added, `fallback()` composes the two non-AI tiers) and `lib/ai/predictions.ts` type widened. New migration `0010_ai_predictions_local_model_source.sql`, applied live

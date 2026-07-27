@@ -76,9 +76,18 @@ public `check`/`verify` pages, and the auth pages still have their own hand-copi
 classes — not a regression (they worked before and still work), just not yet consistent with the
 new shared components. Low-risk, mechanical follow-up whenever someone has a spare hour.
 
-## Not blockers, but explicitly out of scope this run (see STATUS_REPORT.md for why)
+## 7. Local classifier dataset needs human review before any accuracy claim
 
-The local ML classifier (Task 11) was not attempted — a genuinely multi-hour build (dataset
-authoring, training pipeline, licensing checks) in its own right, not abandoned mid-way, simply
-not started yet. Offline verification (Task 8), PDF digital-signature verification (Task 9), and
-the shared UI component library (Task 10) were all completed this run — see STATUS_REPORT.md.
+`data/cameroon_seed.jsonl` (124 rows) is self-authored, modeled on known scam patterns, not a
+collected/reviewed real dataset — Pidgin examples specifically were not written by a native
+speaker. `ml/METRICS.md` states this explicitly. Per CLAUDE.md §10.4, do not present this
+classifier's ~87.5% test-set accuracy as a validated production accuracy figure in the pitch
+without a human (ideally a Cameroonian linguist or fraud-response SME) reviewing the dataset
+first. This is not a code defect — it's a human sign-off this session cannot obtain on its own.
+
+## All 12 P0/P1/P2 tasks from this run have now been attempted
+
+Offline verification (Task 8), PDF digital-signature verification (Task 9), the shared UI
+component library (Task 10), and the local classifier (Task 11) were all completed — see
+STATUS_REPORT.md for what "complete" means for each (several were deliberately scoped down
+rather than built superficially at full spec width; the report says exactly where and why).
