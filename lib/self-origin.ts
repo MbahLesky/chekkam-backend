@@ -17,5 +17,11 @@ import { NextRequest } from "next/server";
  */
 export function getSelfOrigin(req: NextRequest): string {
   const privateDomain = process.env.RAILWAY_PRIVATE_DOMAIN;
-  return privateDomain ? `http://${privateDomain}` : req.nextUrl.origin;
+  // The private domain routes to whatever port this service actually listens
+  // on, not 80 — a bare http://<domain> with no port was confirmed live to
+  // fail with ECONNREFUSED. Next.js's own startup log ("Network: http://
+  // <ip>:8080") is the source of truth for the port; process.env.PORT is not
+  // set at runtime the same way `railway run` reports it.
+  const port = process.env.PORT ?? "8080";
+  return privateDomain ? `http://${privateDomain}:${port}` : req.nextUrl.origin;
 }
