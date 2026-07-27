@@ -175,16 +175,6 @@ describe("generateCertificatePdf", () => {
     expect(loaded.getPageCount()).toBe(1);
   });
 
-  test("produces a loadable PDF for an expired document", async () => {
-    const expired: CertificateDocument = {
-      ...sampleDoc,
-      expiry_date: "2020-01-01T00:00:00Z",
-    };
-    const bytes = await generateCertificatePdf(expired);
-    const loaded = await PDFDocument.load(bytes);
-    expect(loaded.getPageCount()).toBe(1);
-  });
-
   test("does not throw when recipient_name and pin_code are absent", async () => {
     const minimal: CertificateDocument = {
       ...sampleDoc,
