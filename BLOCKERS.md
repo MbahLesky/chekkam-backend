@@ -31,6 +31,29 @@ auth only a human can complete).
 will show why (this exact failure mode — a bad merge breaking `npm run build` — already
 happened once this week, see git history around commit `2d85be3a`).
 
+**Re-checked at the end of this run (after Tasks 8-11, commit `deb3b96`/`9b7be46`), still behind:**
+```
+$ curl -s -D - -X POST https://chekkam-backend-production.up.railway.app/api/documents/pdf-signature-check
+HTTP/1.1 405 Method Not Allowed   # POST is this route's ONLY method — a 405 here (not the
+                                    # handler's own response) means this route file (Task 9,
+                                    # pushed hours ago) isn't in the deployed build at all
+
+$ curl -s -D - https://chekkam-backend-production.up.railway.app/api/institutions/public-keys
+HTTP/1.1 405 Method Not Allowed   # same signature: GET is this route's ONLY method (Task 8)
+
+$ curl -s -o /dev/null -w "%{http_code}" -X POST https://chekkam-backend-production.up.railway.app/api/enterprise/bulk-verify
+404   # Task 6, still missing hours later
+```
+Confirmed this 405-on-correct-method pattern specifically means "route not deployed" (not a real
+405) by comparing against a definitely-old, definitely-deployed route: `POST` to a GET-only old
+route correctly returns `405` (wrong method on an existing route), `GET` to that same route
+returns `200`, and a path that has never existed in any version of this repo returns a plain
+`404`. So this is not new information, just fresher confirmation of the same standing blocker —
+as of this report, **none of Tasks 6, 8, 9, 10, or 11 are live on Railway**, only whatever was
+live at the last successful deploy (partial Task 1 CORS fix: the vercel.app origin-matching
+works, but the `X-Api-Key` header addition from that same commit still does not, suggesting the
+last successful deploy predates even that commit fully landing).
+
 ## 2. Flutter/Vercel dart-define values cannot be confirmed from this session
 
 `chekkam/vercel-build.sh` is correct — it injects `API_BASE_URL`, `SUPABASE_URL`, and
