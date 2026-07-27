@@ -130,14 +130,25 @@ component library (Task 10), and the local classifier (Task 11) were all complet
 STATUS_REPORT.md for what "complete" means for each (several were deliberately scoped down
 rather than built superficially at full spec width; the report says exactly where and why).
 
-## 8. `PARTNER_DEMO_API_KEY` is set locally only — not on Railway
+## 8. RESOLVED — `PARTNER_DEMO_API_KEY` and `CHEKKAM_RECEIPT_SIGNING_KEY` now set on Railway
 
-A new demo-only partner API key was minted for `/partner-demo` (FR-092) and added to the local
-`.env`. It needs to be set on Railway (as its own new key — do not reuse the local value; mint a
-fresh one there, same as every other credential this session has recommended) before this page
-works in production. Without it, `/partner-demo` still loads correctly and shows a clear
-"not configured" error on both forms rather than crashing — this is a configuration step, not a
-code gap.
+Both set via `railway variables --set` once CLI access was available (the receipt key freshly
+generated for production specifically, never reusing the local dev value, consistent with this
+session's standing rule about credential material). Live-verified end-to-end in production after
+two more real bugs surfaced and got fixed along the way:
+
+- The partner-demo proxy's self-fetch (`req.nextUrl.origin`, `https://...`) failed with
+  `ERR_SSL_WRONG_VERSION_NUMBER` — a same-container request to its own public HTTPS hostname
+  hairpins through Railway's edge in a way Node's `fetch` can't complete. Fixed via
+  `lib/self-origin.ts`, which prefers `RAILWAY_PRIVATE_DOMAIN` (Railway's private network,
+  designed for exactly this) over plain HTTP when present.
+- That alone still failed with `ECONNREFUSED` — the private domain needs an explicit port; a bare
+  `http://<domain>` implicitly tries 80, but this service listens on 8080 (confirmed from its own
+  Next.js startup log line). Fixed by including `process.env.PORT` (falling back to the observed
+  8080) in the private-domain URL.
+
+Both `/api/partner-demo-proxy/check` and `/api/partner-demo-proxy/document-check` now return real
+results in production, confirmed with live curl calls, not just a local dev-server check.
 
 ## 9. Concurrent-writer risk materialized into a real regression this time, not just a hypothetical
 
