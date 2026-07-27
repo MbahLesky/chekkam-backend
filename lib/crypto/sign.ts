@@ -24,6 +24,24 @@ export function getInstitutionPrivateKey(institutionId: string): string {
   return raw.replace(/\\n/g, "\n");
 }
 
+/**
+ * Looks up Chekkam's own platform-level ECDSA private key, used to sign
+ * verification receipts (FR-111) — a receipt attests "Chekkam verified
+ * this," not "institution X issued this," so it is never signed with an
+ * institution's key. Same env-var-only, PEM-with-literal-\n convention as
+ * getInstitutionPrivateKey.
+ */
+export function getChekkamReceiptSigningKey(): string {
+  const raw = process.env.CHEKKAM_RECEIPT_SIGNING_KEY;
+  if (!raw) {
+    throw new ConfigError(
+      "No CHEKKAM_RECEIPT_SIGNING_KEY configured. Generate one with " +
+        "`npm run generate-signing-key` and set it in your environment."
+    );
+  }
+  return raw.replace(/\\n/g, "\n");
+}
+
 /** Signs a SHA-256 hash with an institution's ECDSA (P-256) private key. SRS 10.1 step 3. */
 export function signHash(hashHex: string, privateKeyPem: string): string {
   const signer = crypto.createSign("SHA256");
