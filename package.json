@@ -17,6 +17,7 @@
   "dependencies": {
     "@napi-rs/canvas": "^0.1.100",
     "@supabase/supabase-js": "^2.110.0",
+    "@tailwindcss/oxide": "^4.3.2",
     "@upstash/redis": "^1.38.0",
     "file-type": "^19.6.0",
     "firebase-admin": "^14.1.0",
