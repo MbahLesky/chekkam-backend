@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LanguageToggle } from "@/components/language-toggle";
@@ -15,10 +16,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const supabase = getSupabaseBrowser();
   const [role, setRole] = useState<string | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const navItems = [
     { href: "/dashboard/reports", label: t("reports") },
     { href: "/dashboard/documents", label: t("documents") },
+    { href: "/dashboard/enterprise/bulk", label: t("bulkVerification") },
     { href: "/dashboard/alerts", label: t("publicAlerts") },
     { href: "/dashboard/safety-alerts", label: t("safetyAlerts") },
   ];
@@ -40,6 +43,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .single()
       .then(({ data }) => setRole(data?.role ?? null));
   }, [supabase, session]);
+
+  // Close the mobile nav automatically on navigation, so it never stays
+  // open covering the new page after tapping a link.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional reset of transient UI state on route change
+    setMobileNavOpen(false);
+  }, [pathname]);
 
   if (!configured) {
     return (
@@ -72,12 +82,41 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-full flex-1">
-      <aside className="flex w-56 flex-shrink-0 flex-col bg-gradient-lagoon px-4 py-6 text-white">
+      {/* Backdrop: mobile only, closes the drawer on tap outside it. */}
+      {mobileNavOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 sm:hidden"
+          onClick={() => setMobileNavOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Fixed off-canvas drawer below the sm breakpoint (a mobile browser
+          viewport is ~360-430px wide; a static 224px sidebar left ~150px
+          for the whole page content, unusable — confirmed via a live
+          tester's screenshot). At sm and up this becomes the original
+          static, always-visible sidebar. */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-shrink-0 flex-col bg-gradient-hero px-4 py-6 text-white transition-transform duration-200 sm:static sm:z-auto sm:w-56 sm:translate-x-0 ${
+          mobileNavOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
         <div className="mb-8 flex items-center justify-between gap-2 px-2">
           <div className="flex items-center gap-2.5">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15 text-xs">✓</span>
+            {/* Light chip so the full-color mark keeps its contrast against
+                the gradient sidebar (§2). */}
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white p-1">
+              <Image src="/chekkam_icon.png" alt="Chekkam" width={96} height={111} className="h-full w-auto" />
+            </span>
             <span className="font-[family-name:var(--font-heading)] text-base font-semibold">Chekkam</span>
           </div>
+          <button
+            onClick={() => setMobileNavOpen(false)}
+            aria-label={t("close")}
+            className="rounded-full p-1 text-white/70 transition hover:bg-white/10 hover:text-white sm:hidden"
+          >
+            ✕
+          </button>
         </div>
         <nav className="flex flex-1 flex-col gap-1">
           {navItems.map((item) => {
@@ -114,7 +153,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </button>
         </div>
       </aside>
-      <main className="flex-1 overflow-y-auto bg-chekkam-surface p-8">{children}</main>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Mobile-only top bar with the hamburger toggle; hidden at sm and up
+            where the sidebar is already always visible. */}
+        <div className="flex items-center gap-3 border-b border-chekkam-border bg-chekkam-surface-raised px-4 py-3 sm:hidden">
+          <button
+            onClick={() => setMobileNavOpen(true)}
+            aria-label={t("openMenu")}
+            className="rounded-[var(--radius-chekkam-sm)] p-2 text-chekkam-ink transition hover:bg-chekkam-tint"
+          >
+            ☰
+          </button>
+          <span className="font-[family-name:var(--font-heading)] text-sm font-semibold text-chekkam-ink">
+            Chekkam
+          </span>
+        </div>
+        <main className="flex-1 overflow-y-auto bg-chekkam-surface p-4 sm:p-8">{children}</main>
+      </div>
     </div>
   );
 }

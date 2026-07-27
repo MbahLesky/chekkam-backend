@@ -9,7 +9,7 @@ export default function Home() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <section className="relative overflow-hidden bg-gradient-lagoon px-6 py-24 text-center text-white">
+      <section className="relative overflow-hidden bg-gradient-hero px-6 py-24 text-center text-white">
         <LanguageToggle dark className="absolute right-5 top-5" />
         <div className="relative mx-auto max-w-2xl">
           <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white/12 text-3xl shadow-chekkam-lg">
@@ -60,7 +60,7 @@ export default function Home() {
           <div className="mt-4 flex shrink-0 gap-3 sm:mt-0">
             <Link
               href="/login"
-              className="rounded-[var(--radius-chekkam-sm)] bg-gradient-lagoon px-5 py-2 text-sm font-semibold text-white shadow-chekkam-sm transition hover:brightness-110"
+              className="rounded-[var(--radius-chekkam-sm)] bg-gradient-hero px-5 py-2 text-sm font-semibold text-white shadow-chekkam-sm transition hover:brightness-110"
             >
               {t("staffSignIn")}
             </Link>
@@ -72,6 +72,12 @@ export default function Home() {
             </Link>
           </div>
         </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-4xl px-6 pb-16 text-center">
+        <Link href="/pricing" className="text-sm font-medium text-chekkam-primary hover:underline">
+          Pricing & business model →
+        </Link>
       </section>
     </div>
   );

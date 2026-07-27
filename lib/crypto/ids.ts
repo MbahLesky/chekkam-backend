@@ -12,9 +12,9 @@ function randomSegment(length: number): string {
   return out;
 }
 
-/** Generates a verification ID like CHK-4F7K-9QRT. SRS 10.1 step 4. */
-export function generateVerificationId(): string {
-  return `CHK-${randomSegment(4)}-${randomSegment(4)}`;
+/** Generates an ID like CHK-4F7K-9QRT (SRS 10.1 step 4), or RCP-... for a receipt (FR-111) — same generator, different prefix, so receipt IDs are visually distinct from document verification IDs without a second implementation. */
+export function generateVerificationId(prefix: "CHK" | "RCP" = "CHK"): string {
+  return `${prefix}-${randomSegment(4)}-${randomSegment(4)}`;
 }
 
 /** Generates a random 6-digit PIN, mirroring the WAEC-style PIN model. SRS 10.1 step 4. */

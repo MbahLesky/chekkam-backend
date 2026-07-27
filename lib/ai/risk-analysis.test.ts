@@ -45,19 +45,37 @@ describe("analyzeContent (no OPENAI_API_KEY)", () => {
     vi.stubEnv("OPENAI_API_KEY", "");
   });
 
-  it("falls back to rule-based analysis and logs the prediction", async () => {
+  it("falls back to the local model (ahead of pure rule-based) and logs the prediction", async () => {
     const { analyzeContent } = await import("@/lib/ai/risk-analysis");
     const result = await analyzeContent("send money now, urgent!", {
       reportId: "report-123",
       inputType: "text",
     });
 
-    expect(result.source).toBe("rule_based_fallback");
+    // The local model (lib/ai/local-model.ts) loads successfully in this
+    // environment, so it is the fallback used here — pure keyword-only
+    // rule-based fallback is now the third tier, exercised directly by the
+    // ruleBasedFallback() unit tests above, not by this no-API-key path.
+    expect(result.source).toBe("local_model");
     expect(logAiPrediction).toHaveBeenCalledTimes(1);
     const call = logAiPrediction.mock.calls[0][0] as Record<string, unknown>;
     expect(call.reportId).toBe("report-123");
     expect(call.inputType).toBe("text");
-    expect(call.source).toBe("rule_based_fallback");
+    expect(call.source).toBe("local_model");
     expect(typeof call.latencyMs).toBe("number");
+  });
+});
+
+describe("localModelFallback", () => {
+  it("produces a complete RiskAnalysisResult shape with source local_model", async () => {
+    const { localModelFallback } = await import("@/lib/ai/risk-analysis");
+    const result = localModelFallback("URGENT: send money now via mobile money or lose your scholarship!");
+    expect(result).not.toBeNull();
+    expect(result!.source).toBe("local_model");
+    expect(result!.needs_human_review).toBe(true);
+    expect(["low", "medium", "high", "critical"]).toContain(result!.risk_level);
+    expect(["low", "medium", "high"]).toContain(result!.confidence);
+    expect(result!.indicators.has_urgency_pressure).toBe(true);
+    expect(result!.indicators.requests_payment).toBe(true);
   });
 });

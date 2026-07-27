@@ -5,7 +5,7 @@ import { toErrorResponse, ValidationError } from "@/lib/errors";
 import { hashDocument } from "@/lib/crypto/sign";
 
 /**
- * POST /v1/partner/document-check — server-to-server document verification
+ * POST /api/v1/partner/document-check — server-to-server document verification
  * for API partners (FR-061). multipart/form-data: file (required) or
  * verification_id (form field, either works alongside a file).
  */

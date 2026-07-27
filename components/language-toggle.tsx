@@ -31,7 +31,7 @@ export function LanguageToggle({
           className={`rounded-[calc(var(--radius-chekkam-sm)-2px)] px-2.5 py-1 transition ${
             lang === option.value
               ? dark
-                ? "bg-white text-chekkam-lagoon"
+                ? "bg-white text-chekkam-deep"
                 : "bg-chekkam-primary text-white"
               : dark
                 ? "text-white/70 hover:text-white"
