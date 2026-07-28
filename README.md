@@ -96,3 +96,5 @@ scripts/          issue-api-key, generate-signing-key, set-telegram-webhook, see
 
 See `../chekkam/DOCUMENTATION.md` for the full build log, endpoint list, and
 what's next in priority order.
+
+Chore: trigger Vercel redeploy (non-functional edit) — 2026-07-28
