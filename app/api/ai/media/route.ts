@@ -1,9 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { checkRateLimit } from "@/lib/rate-limit";
+
+const RATE_LIMIT = 10;
+const RATE_WINDOW_SECONDS = 10 * 60;
 
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData();
+    const clientIp =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
+    const rate = await checkRateLimit(`ai-media:${clientIp}`, RATE_LIMIT, RATE_WINDOW_SECONDS);
+    if (!rate.allowed) {
+      return NextResponse.json(
+        {
+          error: {
+            code: "RATE_LIMITED",
+            message: "Too many requests from this network. Please wait a bit and try again.",
+          },
+        },
+        { status: 429 }
+      );
+    }
+
+    const supabaseAdmin = getSupabaseAdmin();
+    let formData: FormData;
+    try {
+      formData = await req.formData();
+    } catch {
+      return NextResponse.json(
+        { error: { message: "File is required (multipart/form-data).", code: "VALIDATION_ERROR" } },
+        { status: 400 }
+      );
+    }
     const file = formData.get("file") as File | null;
     const mediaType = formData.get("media_type") as string;
     const channel = formData.get("channel") as string ?? "mobile";

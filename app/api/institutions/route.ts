@@ -69,15 +69,38 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/** GET /api/institutions — public list of active institutions. */
-export async function GET() {
+/**
+ * GET /api/institutions — public, searchable list of active institutions
+ * (Phase 11 — Cameroon Trusted Institution Registry / National Verification
+ * Directory: citizens search verified institutions before trusting a
+ * document/message). Only ever returns `status=active` rows and safe fields
+ * — no signing_key_ref, no contact details beyond what's already public
+ * knowledge for an active institution.
+ *
+ * Query params (all optional): q (name search), type (institution type),
+ * verified ("true"/"false").
+ */
+export async function GET(req: NextRequest) {
   try {
     const admin = getSupabaseAdmin();
-    const { data, error } = await admin
+    const { searchParams } = new URL(req.url);
+    const q = searchParams.get("q")?.trim();
+    const type = searchParams.get("type");
+    const verified = searchParams.get("verified");
+
+    let query = admin
       .from("institutions")
       .select("id, name, type, verified, status")
       .eq("status", "active")
-      .order("name");
+      .order("name")
+      .limit(200);
+
+    if (q) query = query.ilike("name", `%${q}%`);
+    if (type) query = query.eq("type", type);
+    if (verified === "true") query = query.eq("verified", true);
+    if (verified === "false") query = query.eq("verified", false);
+
+    const { data, error } = await query;
     if (error) throw error;
     return NextResponse.json({ institutions: data });
   } catch (err) {

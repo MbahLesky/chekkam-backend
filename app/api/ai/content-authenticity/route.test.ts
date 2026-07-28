@@ -60,6 +60,17 @@ describe("POST /api/ai/content-authenticity", () => {
     expect(res.status).toBe(400);
   });
 
+  it("returns 400 (not 500) for a malformed multipart body", async () => {
+    const { POST } = await import("@/app/api/ai/content-authenticity/route");
+    const req = new NextRequest("http://localhost/api/ai/content-authenticity", {
+      method: "POST",
+      headers: { "content-type": "multipart/form-data; boundary=broken" },
+      body: "this is not a valid multipart body",
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+  });
+
   it("accepts valid text and returns the created row", async () => {
     const { POST } = await import("@/app/api/ai/content-authenticity/route");
     const req = new NextRequest("http://localhost/api/ai/content-authenticity", {

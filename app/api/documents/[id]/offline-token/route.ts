@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { toErrorResponse } from "@/lib/errors";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { getInstitutionPrivateKey } from "@/lib/crypto/sign";
 import { generateQrDataUrl } from "@/lib/crypto/qrcode";
 import { buildSignedToken, TOKEN_VERSION } from "@/lib/crypto/token";
+
+const RATE_LIMIT = 30;
+const RATE_WINDOW_SECONDS = 10 * 60;
 
 /**
  * GET /api/documents/:id/offline-token (FR-049) — public, anonymous, same
@@ -26,6 +30,18 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const clientIp =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
+    const rate = await checkRateLimit(`offline-token:${clientIp}`, RATE_LIMIT, RATE_WINDOW_SECONDS);
+    if (!rate.allowed) {
+      return NextResponse.json(
+        { error: { code: "RATE_LIMITED", message: "Too many requests from this network. Please wait a bit and try again." } },
+        { status: 429 }
+      );
+    }
+
     const { id } = await params;
     const admin = getSupabaseAdmin();
     const { data: doc } = await admin

@@ -4,6 +4,7 @@ import { requireUser, resolveOptionalUserId } from "@/lib/auth";
 import { reportCreateSchema } from "@/lib/validation/schemas";
 import { parseBody } from "@/lib/validation/parse";
 import { toErrorResponse } from "@/lib/errors";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { analyzeContent } from "@/lib/ai/risk-analysis";
 import { pickLang, tt } from "@/lib/i18n";
 import { extractFingerprint } from "@/lib/campaigns/fingerprint";
@@ -14,15 +15,38 @@ import {
   createCampaignFromReports,
 } from "@/lib/campaigns/matcher";
 
+const RATE_LIMIT = 20;
+const RATE_WINDOW_SECONDS = 10 * 60;
+
 /**
  * POST /api/reports — submit suspicious content (SRS FR-010, 6.1).
  * Text/link content is analyzed synchronously (AI risk analysis + campaign
  * matching, SRS Section 8-9) before responding; image/file content is queued
- * for analyst review since OCR-based analysis is Phase 2 (FR-048).
+ * for analyst review since OCR-based analysis is Phase 2 (FR-048). Rate
+ * limited by IP: this is the most expensive anonymous-callable endpoint in
+ * the app (runs the full AI risk pipeline), same protection already applied
+ * to /api/security/check and /api/ai/content-authenticity.
  */
 export async function POST(req: NextRequest) {
   let preferredLang = pickLang(req.headers.get("accept-language"));
   try {
+    const clientIp =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
+    const rate = await checkRateLimit(`reports:${clientIp}`, RATE_LIMIT, RATE_WINDOW_SECONDS);
+    if (!rate.allowed) {
+      return NextResponse.json(
+        {
+          error: {
+            code: "RATE_LIMITED",
+            message: "Too many reports from this network. Please wait a bit and try again.",
+          },
+        },
+        { status: 429 }
+      );
+    }
+
     const body = parseBody(reportCreateSchema, await req.json());
     preferredLang = pickLang(
       body.language === "unknown" ? null : body.language,

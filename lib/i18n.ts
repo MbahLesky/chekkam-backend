@@ -29,6 +29,10 @@ export const apiText = {
       "Votre institution a été enregistrée et attend une revue. Un administrateur " +
       "vous contactera pour activer la signature de documents.",
   },
+  citizenSignupSuccess: {
+    en: "Your account has been created. You can now sign in.",
+    fr: "Votre compte a été créé. Vous pouvez maintenant vous connecter.",
+  },
   fileRequired: {
     en: "file is required (multipart/form-data).",
     fr: "Le fichier est requis (multipart/form-data).",

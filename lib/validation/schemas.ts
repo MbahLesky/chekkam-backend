@@ -60,20 +60,31 @@ export const documentRevokeSchema = z.object({
   reason: z.string().min(1),
 });
 
+// Phase 11 — Cameroon Trusted Institution Registry: widened to cover the
+// categories citizens need to be able to trust/search (0015_institution_registry.sql).
+export const INSTITUTION_TYPES = [
+  "ministry",
+  "exam_board",
+  "school",
+  "university",
+  "company",
+  "ngo",
+  "media",
+  "civil_registry",
+  "other",
+  "manufacturer",
+  "hospital",
+  "bank",
+  "telecom_operator",
+  "council",
+  "court",
+  "police",
+  "gendarmerie",
+] as const;
+
 export const institutionSignupSchema = z.object({
   institution_name: z.string().min(1),
-  institution_type: z.enum([
-    "ministry",
-    "exam_board",
-    "school",
-    "university",
-    "company",
-    "ngo",
-    "media",
-    "civil_registry",
-    "other",
-    "manufacturer",
-  ]),
+  institution_type: z.enum(INSTITUTION_TYPES),
   officer_name: z.string().min(1),
   email: z.string().email(),
   password: z.string().min(8),
@@ -81,18 +92,7 @@ export const institutionSignupSchema = z.object({
 
 export const institutionCreateSchema = z.object({
   name: z.string().min(1),
-  type: z.enum([
-    "ministry",
-    "exam_board",
-    "school",
-    "university",
-    "company",
-    "ngo",
-    "media",
-    "civil_registry",
-    "other",
-    "manufacturer",
-  ]),
+  type: z.enum(INSTITUTION_TYPES),
   contact_email: z.string().email().optional(),
   contact_phone: z.string().optional(),
 });
@@ -141,6 +141,16 @@ export const productStatusUpdateSchema = z
 
 export const institutionStatusUpdateSchema = z.object({
   status: z.enum(["active", "suspended"]),
+});
+
+// Phase 11 — self-serve citizen signup (role: 'citizen', no institution).
+// profiles has no public INSERT policy (by design — role must never be
+// client-settable), so account creation always goes through this
+// service-role-backed route, same pattern as institutionSignupSchema.
+export const citizenSignupSchema = z.object({
+  display_name: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(8),
 });
 
 export const campaignUpdateSchema = z.object({

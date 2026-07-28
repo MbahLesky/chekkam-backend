@@ -63,7 +63,12 @@ export async function POST(req: NextRequest) {
     let evidenceId: string | null = null;
 
     if (contentType.includes("multipart/form-data")) {
-      const form = await req.formData();
+      let form: FormData;
+      try {
+        form = await req.formData();
+      } catch {
+        throw new ValidationError("file is required (multipart/form-data).", "file");
+      }
       const file = form.get("file");
       const kind = form.get("kind");
       if (!(file instanceof File)) {

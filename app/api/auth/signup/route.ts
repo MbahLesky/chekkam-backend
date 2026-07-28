@@ -3,7 +3,11 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { institutionSignupSchema } from "@/lib/validation/schemas";
 import { parseBody } from "@/lib/validation/parse";
 import { ValidationError, toErrorResponse } from "@/lib/errors";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { pickLang, tt } from "@/lib/i18n";
+
+const RATE_LIMIT = 5;
+const RATE_WINDOW_SECONDS = 10 * 60;
 
 /**
  * POST /api/auth/signup — self-serve institution onboarding.
@@ -19,6 +23,23 @@ import { pickLang, tt } from "@/lib/i18n";
 export async function POST(req: NextRequest) {
   const preferredLang = pickLang(req.headers.get("accept-language"));
   try {
+    const clientIp =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
+    const rate = await checkRateLimit(`auth-signup:${clientIp}`, RATE_LIMIT, RATE_WINDOW_SECONDS);
+    if (!rate.allowed) {
+      return NextResponse.json(
+        {
+          error: {
+            code: "RATE_LIMITED",
+            message: "Too many signup attempts from this network. Please wait a bit and try again.",
+          },
+        },
+        { status: 429 }
+      );
+    }
+
     const body = parseBody(institutionSignupSchema, await req.json());
     const admin = getSupabaseAdmin();
 

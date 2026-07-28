@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { requireUser, requireRole } from "@/lib/auth";
-import { toErrorResponse } from "@/lib/errors";
+import { requireUser, requireAlertPublisher } from "@/lib/auth";
+import { jsonError, toErrorResponse, AuthError } from "@/lib/errors";
 
 /**
  * POST /api/public-alerts/:id/publish — the human-approval gate before an
  * alert becomes visible to the public (SRS Section 14 "nothing is published
- * ... without human analyst approval").
+ * ... without human analyst approval"). analyst/admin/super_admin, or an
+ * institution_officer of a verified institution publishing their own draft
+ * (Phase 11 — Cameroon Emergency Trust Bulletin).
  */
 export async function POST(
   req: NextRequest,
@@ -15,9 +17,21 @@ export async function POST(
   try {
     const { id } = await params;
     const profile = await requireUser(req);
-    requireRole(profile, ["analyst", "admin", "super_admin"]);
-
     const admin = getSupabaseAdmin();
+    await requireAlertPublisher(profile, admin);
+
+    if (profile.role === "institution_officer") {
+      const { data: existing } = await admin
+        .from("public_alerts")
+        .select("created_by")
+        .eq("id", id)
+        .maybeSingle();
+      if (!existing) return jsonError("NOT_FOUND", "Public alert not found.", 404);
+      if (existing.created_by !== profile.id) {
+        throw new AuthError("You can only publish bulletins you created.", 403);
+      }
+    }
+
     const { data, error } = await admin
       .from("public_alerts")
       .update({ published: true, published_at: new Date().toISOString() })
