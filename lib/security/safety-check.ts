@@ -1,16 +1,115 @@
+import net from "node:net";
+import dns from "node:dns/promises";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { analyzeContent } from "@/lib/ai/risk-analysis";
 import { extractText } from "@/lib/ai/ocr";
 import { hashDocument } from "@/lib/crypto/sign";
-import {
-  analyzeUrlSignals,
-  assertPublicHttpUrl,
-  followSafeRedirects,
-  UrlSignal,
-} from "@/lib/url-intelligence";
+import { ValidationError } from "@/lib/errors";
 import { Lang } from "@/lib/i18n";
 
 export type SafetyCheckInputType = "link" | "qr" | "file" | "text";
+
+type UrlSignal = { id: string; risk: number; explanation: string };
+
+/** SSRF guard: rejects anything but a public http(s) URL. Self-contained
+ * here rather than importing a shared url-intelligence module — none
+ * currently exists as committed code in this repo. */
+function isPrivateIpv4(address: string): boolean {
+  const [a, b] = address.split(".").map(Number);
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    a >= 224
+  );
+}
+
+function isPrivateIp(address: string): boolean {
+  if (net.isIPv4(address)) return isPrivateIpv4(address);
+  const value = address.toLowerCase();
+  return (
+    value === "::" ||
+    value === "::1" ||
+    value.startsWith("fc") ||
+    value.startsWith("fd") ||
+    /^fe[89ab]/.test(value)
+  );
+}
+
+async function assertPublicHttpUrl(url: URL): Promise<void> {
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) {
+    throw new ValidationError(
+      "Only public HTTP(S) URLs without embedded credentials are supported.",
+      "url"
+    );
+  }
+  const addresses = net.isIP(url.hostname)
+    ? [{ address: url.hostname }]
+    : await dns.lookup(url.hostname, { all: true, verbatim: true });
+  if (!addresses.length || addresses.some(({ address }) => isPrivateIp(address))) {
+    throw new ValidationError("Local and private network destinations cannot be analyzed.", "url");
+  }
+}
+
+/** A handful of deterministic, low-cost URL heuristics. Deliberately small —
+ * analyzeContent() (the AI layer) carries most of the actual judgment. */
+function analyzeUrlSignals(url: URL): UrlSignal[] {
+  const signals: UrlSignal[] = [];
+  const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
+  if (url.protocol !== "https:") {
+    signals.push({ id: "no_https", risk: 25, explanation: "The URL does not use encrypted HTTPS." });
+  }
+  if (hostname.startsWith("xn--")) {
+    signals.push({
+      id: "homograph",
+      risk: 35,
+      explanation: "The hostname uses internationalized encoding that can disguise look-alike characters.",
+    });
+  }
+  if (hostname.split(".").length > 4) {
+    signals.push({
+      id: "excessive_subdomains",
+      risk: 15,
+      explanation: "The hostname contains an unusually deep subdomain chain.",
+    });
+  }
+  if (url.toString().length > 180 || /%[0-9a-f]{2}/i.test(url.pathname)) {
+    signals.push({ id: "obfuscated_url", risk: 15, explanation: "The URL is unusually long or encoded." });
+  }
+  return signals;
+}
+
+async function followSafeRedirects(
+  initial: URL
+): Promise<{ chain: string[]; reachable: boolean }> {
+  const chain = [initial.toString()];
+  let current = initial;
+  for (let index = 0; index < 5; index += 1) {
+    await assertPublicHttpUrl(current);
+    let response: Response;
+    try {
+      response = await fetch(current, {
+        method: "HEAD",
+        redirect: "manual",
+        signal: AbortSignal.timeout(6000),
+        headers: { "user-agent": "CHEKKAM-Safety-Check/1.0" },
+      });
+    } catch {
+      return { chain, reachable: false };
+    }
+    if (![301, 302, 303, 307, 308].includes(response.status)) {
+      return { chain, reachable: true };
+    }
+    const location = response.headers.get("location");
+    if (!location) break;
+    current = new URL(location, current);
+    chain.push(current.toString());
+  }
+  return { chain, reachable: true };
+}
 
 export type SafetyCheckInput =
   | { inputType: "link" | "qr"; url: string; userId: string | null; language?: Lang }
@@ -49,7 +148,7 @@ async function checkLinkOrQr(url: string, language: Lang): Promise<{
   const parsed = new URL(url);
   await assertPublicHttpUrl(parsed);
 
-  const signals = analyzeUrlSignals(parsed, []);
+  const signals = analyzeUrlSignals(parsed);
   const redirect = await followSafeRedirects(parsed);
   if (!redirect.reachable) {
     signals.push({
