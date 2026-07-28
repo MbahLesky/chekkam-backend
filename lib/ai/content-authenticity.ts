@@ -110,29 +110,14 @@ export async function analyzeTextAuthenticity(text: string): Promise<ContentAuth
     TEXT_SYSTEM_PROMPT,
     `Text submitted for AI-authorship assessment:\n\n"""\n${text}\n"""`
   );
-  if (parsed) {
-    return {
-      status: "done",
-      ai_likelihood: parsed.ai_likelihood,
-      confidence: clampConfidence(parsed.confidence),
-      indicators: parsed.indicators,
-      explanation: parsed.explanation,
-    };
-  }
+  if (!parsed) return UNAVAILABLE;
 
-  // Heuristic fallback for text when LLM API key is not present
-  const isGeneric = text.length > 100 && (text.includes("Furthermore") || text.includes("In conclusion") || text.includes("Delve"));
   return {
     status: "done",
-    ai_likelihood: isGeneric ? "medium" : "low",
-    confidence: "medium",
-    indicators: {
-      repetitive_phrasing_detected: isGeneric,
-      unnatural_uniformity: isGeneric,
-    },
-    explanation: isGeneric
-      ? ["Text uses highly structured, generic phrasing characteristic of AI language models."]
-      : ["No obvious AI-generation text patterns detected in the submitted content."],
+    ai_likelihood: parsed.ai_likelihood,
+    confidence: clampConfidence(parsed.confidence),
+    indicators: parsed.indicators,
+    explanation: parsed.explanation,
   };
 }
 
@@ -168,30 +153,14 @@ export async function analyzeImageAuthenticity(
     { type: "text", text: "Assess this image for AI-generation/manipulation indicators." },
     { type: "image_url", image_url: { url: `data:${mimeType};base64,${buffer.toString("base64")}` } },
   ]);
-  if (parsed) {
-    return {
-      status: "done",
-      ai_likelihood: parsed.ai_likelihood,
-      confidence: clampConfidence(parsed.confidence),
-      indicators: { ...parsed.indicators, exif_metadata_present: exifPresent },
-      explanation: parsed.explanation,
-    };
-  }
+  if (!parsed) return UNAVAILABLE;
 
-  // Heuristic analysis when LLM API key is not present
-  const isLikelyAi = exifPresent === false;
   return {
     status: "done",
-    ai_likelihood: isLikelyAi ? "medium" : "low",
-    confidence: "medium",
-    indicators: {
-      exif_metadata_present: exifPresent,
-      compression_artifacts_detected: true,
-      synthetic_texture_patterns: isLikelyAi,
-    },
-    explanation: isLikelyAi
-      ? ["Image lacks standard camera EXIF metadata often stripped or omitted in AI generators.", "Advisory signal: inspect fine details, hands, and text for synthetic rendering."]
-      : ["Standard image structure verified. Advisory visual check complete."],
+    ai_likelihood: parsed.ai_likelihood,
+    confidence: clampConfidence(parsed.confidence),
+    indicators: { ...parsed.indicators, exif_metadata_present: exifPresent },
+    explanation: parsed.explanation,
   };
 }
 
@@ -214,70 +183,33 @@ export async function analyzeDocumentAuthenticity(
   mimeType: string
 ): Promise<ContentAuthenticityResult> {
   const ocr = await extractText(buffer, mimeType);
-  if (ocr.status === "done" && ocr.extracted_text.trim()) {
-    const parsed = await callVisionOrTextModel(
-      DOCUMENT_SYSTEM_PROMPT,
-      `Document text submitted for fabrication assessment:\n\n"""\n${ocr.extracted_text}\n"""`
-    );
-    if (parsed) {
-      return {
-        status: "done",
-        ai_likelihood: parsed.ai_likelihood,
-        confidence: clampConfidence(parsed.confidence),
-        indicators: parsed.indicators,
-        explanation: parsed.explanation,
-      };
-    }
-  }
+  if (ocr.status !== "done" || !ocr.extracted_text.trim()) return UNAVAILABLE;
+
+  const parsed = await callVisionOrTextModel(
+    DOCUMENT_SYSTEM_PROMPT,
+    `Document text submitted for fabrication assessment:\n\n"""\n${ocr.extracted_text}\n"""`
+  );
+  if (!parsed) return UNAVAILABLE;
 
   return {
     status: "done",
-    ai_likelihood: "low",
-    confidence: "medium",
-    indicators: {
-      document_structure_valid: true,
-      ocr_text_extracted: ocr.status === "done",
-    },
-    explanation: [
-      "Document format verified against official layout conventions.",
-      "No obvious synthetic typography or layout anomalies found.",
-    ],
+    ai_likelihood: parsed.ai_likelihood,
+    confidence: clampConfidence(parsed.confidence),
+    indicators: parsed.indicators,
+    explanation: parsed.explanation,
   };
 }
 
 /**
- * AI Video and Audio generation/deepfake authenticity assessment.
- * Cross-references media features and web search index against official news outlets (CRTV, BBC).
+ * Video/audio authenticity assessment is architecture-ready but not
+ * implemented — there is no real deepfake/voice-clone model wired in, so
+ * this must report "not_supported" rather than a fabricated verdict (same
+ * "never fabricate" contract as the unavailable-path branches above).
  */
 export function videoAuthenticityStatus(): ContentAuthenticityResult {
-  return {
-    status: "done",
-    ai_likelihood: "medium",
-    confidence: "medium",
-    indicators: {
-      facial_sync_anomalies: true,
-      official_outlet_match: false,
-      crtv_bbc_web_crawled: true,
-    },
-    explanation: [
-      "This video could not be verified against official broadcasts (CRTV, BBC).",
-      "Heuristic analysis detected potential frame synchronization and synthetic lighting artifacts.",
-    ],
-  };
+  return NOT_SUPPORTED;
 }
 
 export function audioAuthenticityStatus(): ContentAuthenticityResult {
-  return {
-    status: "done",
-    ai_likelihood: "medium",
-    confidence: "medium",
-    indicators: {
-      voice_clone_spectral_flatness: true,
-      official_outlet_match: false,
-    },
-    explanation: [
-      "Voice pitch and spectral patterns match synthetic voice-cloning indicators.",
-      "Content not found in official press databases.",
-    ],
-  };
+  return NOT_SUPPORTED;
 }
