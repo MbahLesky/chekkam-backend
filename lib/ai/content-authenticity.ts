@@ -21,7 +21,10 @@ const UNAVAILABLE: ContentAuthenticityResult = {
   ai_likelihood: "unknown",
   confidence: null,
   indicators: {},
-  explanation: [],
+  explanation: [
+    "An AI-authenticity provider is not configured or did not return a usable assessment.",
+    "No AI-generation conclusion has been made.",
+  ],
 };
 
 const AUTHENTICITY_TIMEOUT_MS = 20_000;

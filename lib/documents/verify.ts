@@ -9,11 +9,40 @@ import { verifySignature } from "@/lib/crypto/verify";
  * instead of a re-implementation. The two HTTP routes are now thin wrappers
  * around these functions — behavior is unchanged.
  */
-export type VerifierChannel = "mobile" | "web" | "api" | "whatsapp" | "telegram" | "extension" | "widget";
+export type VerifierChannel =
+  | "mobile"
+  | "web"
+  | "api"
+  | "whatsapp"
+  | "telegram"
+  | "extension"
+  | "widget"
+  | "share_intent";
+
+const VERIFIER_CHANNELS: readonly VerifierChannel[] = [
+  "mobile",
+  "web",
+  "api",
+  "whatsapp",
+  "telegram",
+  "extension",
+  "widget",
+  "share_intent",
+];
+
+/** Ensures a public endpoint cannot write an arbitrary channel string into the database. */
+export function verifierChannelFrom(
+  value: string | null | undefined,
+  fallback: VerifierChannel = "web"
+): VerifierChannel {
+  return VERIFIER_CHANNELS.includes(value as VerifierChannel) ? (value as VerifierChannel) : fallback;
+}
 
 export type VerifyResult = {
   status: "genuine" | "tampered" | "revoked" | "expired" | "not_found";
   institution?: string | null;
+  /** True only when Chekkam has separately verified the issuing organisation. */
+  institution_verified?: boolean;
   document_type?: string;
   recipient_name?: string | null;
   verification_id?: string;
@@ -77,7 +106,7 @@ export async function verifyByIdOrPin(
   const { data: doc } = await admin
     .from("documents")
     .select(
-      "id, document_type, recipient_name, status, issued_at, revoked_at, revocation_reason, expiry_date, file_hash, signature, institutions(name, signing_public_key)"
+      "id, verification_id, document_type, recipient_name, status, issued_at, revoked_at, revocation_reason, expiry_date, file_hash, signature, institutions(name, verified, signing_public_key)"
     )
     .or(`verification_id.eq.${verificationId},pin_code.eq.${verificationId}`)
     .maybeSingle();
@@ -94,8 +123,9 @@ export async function verifyByIdOrPin(
     return {
       status: "revoked",
       institution: institution?.name ?? null,
+      institution_verified: institution?.verified === true,
       document_type: doc.document_type,
-      verification_id: verificationId,
+      verification_id: doc.verification_id,
       revoked_at: doc.revoked_at,
       reason: doc.revocation_reason,
     };
@@ -106,8 +136,9 @@ export async function verifyByIdOrPin(
     return {
       status: "expired",
       institution: institution?.name ?? null,
+      institution_verified: institution?.verified === true,
       document_type: doc.document_type,
-      verification_id: verificationId,
+      verification_id: doc.verification_id,
       expiry_date: doc.expiry_date,
       reason: `This document's validity period ended on ${doc.expiry_date}.`,
     };
@@ -118,8 +149,9 @@ export async function verifyByIdOrPin(
     return {
       status: "tampered",
       institution: institution?.name ?? null,
+      institution_verified: institution?.verified === true,
       document_type: doc.document_type,
-      verification_id: verificationId,
+      verification_id: doc.verification_id,
       reason: TAMPERED_SIGNATURE_REASON,
     };
   }
@@ -128,9 +160,10 @@ export async function verifyByIdOrPin(
   return {
     status: "genuine",
     institution: institution?.name ?? null,
+    institution_verified: institution?.verified === true,
     document_type: doc.document_type,
     recipient_name: doc.recipient_name,
-    verification_id: verificationId,
+    verification_id: doc.verification_id,
     issued_at: doc.issued_at,
   };
 }
@@ -152,7 +185,7 @@ export async function verifyByUpload(
     const { data: doc } = await admin
       .from("documents")
       .select(
-        "id, file_hash, signature, document_type, recipient_name, status, revoked_at, revocation_reason, expiry_date, institutions(name, signing_public_key)"
+        "id, verification_id, file_hash, signature, document_type, recipient_name, status, revoked_at, revocation_reason, expiry_date, institutions(name, verified, signing_public_key)"
       )
       .or(`verification_id.eq.${verificationId},pin_code.eq.${verificationId}`)
       .maybeSingle();
@@ -169,8 +202,9 @@ export async function verifyByUpload(
       return {
         status: "revoked",
         institution: institution?.name ?? null,
+        institution_verified: institution?.verified === true,
         document_type: doc.document_type,
-        verification_id: verificationId,
+        verification_id: doc.verification_id,
         reason: doc.revocation_reason,
       };
     }
@@ -180,8 +214,9 @@ export async function verifyByUpload(
       return {
         status: "expired",
         institution: institution?.name ?? null,
+        institution_verified: institution?.verified === true,
         document_type: doc.document_type,
-        verification_id: verificationId,
+        verification_id: doc.verification_id,
         expiry_date: doc.expiry_date,
         reason: `This document's validity period ended on ${doc.expiry_date}.`,
       };
@@ -198,9 +233,10 @@ export async function verifyByUpload(
     return {
       status: genuine ? "genuine" : "tampered",
       institution: institution?.name ?? null,
+      institution_verified: institution?.verified === true,
       document_type: doc.document_type,
       recipient_name: doc.recipient_name,
-      verification_id: verificationId,
+      verification_id: doc.verification_id,
       reason: genuine
         ? undefined
         : hashMatches
@@ -213,7 +249,7 @@ export async function verifyByUpload(
   const { data: doc } = await admin
     .from("documents")
     .select(
-      "id, verification_id, document_type, status, revocation_reason, expiry_date, file_hash, signature, institutions(name, signing_public_key)"
+      "id, verification_id, document_type, status, revocation_reason, expiry_date, file_hash, signature, institutions(name, verified, signing_public_key)"
     )
     .eq("file_hash", computedHash)
     .maybeSingle();
@@ -253,6 +289,7 @@ export async function verifyByUpload(
   return {
     status: result,
     institution: institution?.name ?? null,
+    institution_verified: institution?.verified === true,
     document_type: doc.document_type,
     verification_id: doc.verification_id,
     expiry_date: result === "expired" ? doc.expiry_date : undefined,

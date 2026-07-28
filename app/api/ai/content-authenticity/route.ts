@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
 
         const { data: evidence } = await admin
           .from("evidence")
-          .insert({ file_hash: hashDocument(buffer), file_type: mime, status: "done" })
+          .insert({ file_hash: hashDocument(buffer), file_type: mime })
           .select("id")
           .single();
         evidenceId = evidence?.id ?? null;

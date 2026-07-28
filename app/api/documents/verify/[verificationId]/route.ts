@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { toErrorResponse } from "@/lib/errors";
 import { pickLang, tt } from "@/lib/i18n";
-import { verifyByIdOrPin, VerifierChannel } from "@/lib/documents/verify";
+import { verifyByIdOrPin, verifierChannelFrom } from "@/lib/documents/verify";
 
 const RATE_LIMIT = 30;
 const RATE_WINDOW_SECONDS = 10 * 60;
@@ -44,7 +44,7 @@ export async function GET(
     }
 
     const { verificationId } = await params;
-    const channel = (req.nextUrl.searchParams.get("channel") as VerifierChannel) || "web";
+    const channel = verifierChannelFrom(req.nextUrl.searchParams.get("channel"));
     const admin = getSupabaseAdmin();
     const result = await verifyByIdOrPin(admin, verificationId, channel);
     return NextResponse.json(result);

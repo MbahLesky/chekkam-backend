@@ -127,63 +127,6 @@ export async function POST(req: NextRequest) {
         .eq("id", reportId);
 
       finalStatus = "analyzed";
-    } else if (body.content_type === "video" || body.content_type === "audio") {
-      const isVideo = body.content_type === "video";
-      const reasons = isVideo
-        ? [
-            "This video could not be verified against official channels like CRTV or BBC.",
-            "AI-generation heuristics detected minor anomalies (e.g. inconsistent artifacts).",
-          ]
-        : [
-            "Voice pitch and spectral patterns match synthetic voice-cloning indicators.",
-            "Content not found in official press databases.",
-          ];
-
-      await admin
-        .from("reports")
-        .update({
-          status: "analyzed",
-          risk_level: "medium",
-          risk_score: 65,
-          category: "ai_manipulation",
-          ai_reasons: reasons,
-          ai_indicators: {
-            facial_sync_anomalies: isVideo,
-            official_outlet_match: false,
-            crtv_bbc_web_crawled: true,
-          },
-          recommended_action: isVideo
-            ? "Treat this video with caution until confirmed by an official source (CRTV/BBC)."
-            : "Do not trust sensitive commands or financial requests over unverified voice notes.",
-          needs_human_review: true,
-          confidence: "medium",
-        })
-        .eq("id", reportId);
-
-      finalStatus = "analyzed";
-    } else if (body.content_type === "image") {
-      const analysis = await analyzeContent(body.raw_content ?? "Uploaded image", {
-        reportId,
-        inputType: "text",
-        preferredLanguage: preferredLang,
-      });
-
-      await admin
-        .from("reports")
-        .update({
-          status: "analyzed",
-          risk_level: analysis.risk_level,
-          risk_score: analysis.risk_score,
-          category: analysis.category,
-          ai_reasons: analysis.reasons,
-          ai_indicators: { ...analysis.indicators, source: analysis.source },
-          recommended_action: analysis.recommended_action,
-          needs_human_review: true,
-          confidence: analysis.confidence,
-        })
-        .eq("id", reportId);
-
-      finalStatus = "analyzed";
     }
 
     return NextResponse.json(

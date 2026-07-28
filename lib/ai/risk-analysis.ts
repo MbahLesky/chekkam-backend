@@ -4,7 +4,6 @@ import { getAiConfig } from "@/lib/ai/config";
 import { logAiPrediction } from "@/lib/ai/predictions";
 import { predictLocalRiskLevel } from "@/lib/ai/local-model";
 import { Lang, trRisk } from "@/lib/i18n";
-import { crawlForVideoContext } from "@/lib/ai/web-crawler";
 
 export const riskAnalysisSchema = z.object({
   risk_level: z.enum(["low", "medium", "high", "critical"]),
@@ -91,14 +90,6 @@ export async function analyzeContent(
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    // 1. Crawl for video/news context
-    const crawlResult = await crawlForVideoContext(content);
-    const crawlContext = crawlResult.foundOnOfficialSources
-      ? `\n\n[Web Crawler Note: This content was VERIFIED on official source: ${crawlResult.officialSource}. Details: ${crawlResult.matchedContext}]`
-      : `\n\n[Web Crawler Note: This content could NOT be verified on any official news sources like CRTV or BBC.]`;
-    
-    const enrichedContent = content + crawlContext;
-
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -111,7 +102,7 @@ export async function analyzeContent(
         temperature: 0.2,
         messages: [
           { role: "system", content: RISK_ANALYSIS_SYSTEM_PROMPT },
-          { role: "user", content: buildUserPrompt(enrichedContent, preferredLanguage) },
+          { role: "user", content: buildUserPrompt(content, preferredLanguage) },
         ],
       }),
       signal: controller.signal,

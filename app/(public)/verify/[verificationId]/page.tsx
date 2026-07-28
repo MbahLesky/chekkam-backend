@@ -7,8 +7,9 @@ import { useI18n } from "@/components/i18n-provider";
 import { getVerifyStatusStyle } from "@/lib/verify-status-style";
 
 type VerifyResult = {
-  status: "genuine" | "tampered" | "revoked" | "not_found";
+  status: "genuine" | "tampered" | "revoked" | "expired" | "not_found";
   institution?: string | null;
+  institution_verified?: boolean;
   document_type?: string;
   verification_id?: string;
   reason?: string;
@@ -75,6 +76,10 @@ export default function VerifyPage() {
             {result.institution && (
               <div className="mt-6 rounded-[var(--radius-chekkam-sm)] border border-chekkam-border bg-chekkam-tint p-4 text-left text-sm">
                 <Row label={t("issuedBy")} value={result.institution} />
+                <Row
+                  label={result.institution_verified ? t("institutionVerified") : t("institutionNotVerified")}
+                  value={result.institution_verified ? "✓" : "—"}
+                />
                 {result.document_type && <Row label={t("documentType")} value={result.document_type} />}
                 {result.reason && <Row label={t("reason")} value={result.reason} />}
               </div>
