@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const reportCreateSchema = z
   .object({
-    content_type: z.enum(["text", "link", "image", "file"]),
+    content_type: z.enum(["text", "link", "image", "file", "video", "audio"]),
     raw_content: z.string().min(1).optional(),
     file_url: z.string().url().optional(),
     channel: z
@@ -28,10 +28,13 @@ export const reportCreateSchema = z
   )
   .refine(
     (data) =>
-      data.content_type === "image" || data.content_type === "file"
+      ["image", "file", "video", "audio"].includes(data.content_type)
         ? !!data.file_url
         : true,
-    { message: "file_url is required for content_type=image or file", path: ["file_url"] }
+    {
+      message: "file_url is required for content_type=image, file, video, or audio",
+      path: ["file_url"],
+    }
   );
 
 export const reportUpdateSchema = z.object({

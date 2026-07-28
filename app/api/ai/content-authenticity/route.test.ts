@@ -29,18 +29,18 @@ vi.mock("@/lib/ai/content-authenticity", () => ({
   })),
   analyzeImageAuthenticity: vi.fn(),
   analyzeDocumentAuthenticity: vi.fn(),
-  videoAuthenticityStatus: vi.fn(() => ({
-    status: "not_supported",
+  analyzeVideoAuthenticity: vi.fn(() => ({
+    status: "unavailable",
     ai_likelihood: "unknown",
     confidence: null,
-    indicators: {},
+    indicators: { ai_tool_signature_found: false },
     explanation: [],
   })),
-  audioAuthenticityStatus: vi.fn(() => ({
-    status: "not_supported",
+  analyzeAudioAuthenticity: vi.fn(() => ({
+    status: "unavailable",
     ai_likelihood: "unknown",
     confidence: null,
-    indicators: {},
+    indicators: { ai_tool_signature_found: false },
     explanation: [],
   })),
 }));
@@ -81,5 +81,21 @@ describe("POST /api/ai/content-authenticity", () => {
     const body = await res.json();
     expect(res.status).toBe(201);
     expect(body.id).toBe("cac-1");
+  });
+
+  it("accepts a video file (kind=video) and runs the metadata signature scan", async () => {
+    const { POST } = await import("@/app/api/ai/content-authenticity/route");
+    const form = new FormData();
+    form.set("kind", "video");
+    form.set(
+      "file",
+      new File([new Blob(["not really a video, just test bytes"])], "clip.mp4")
+    );
+    const req = new NextRequest("http://localhost/api/ai/content-authenticity", {
+      method: "POST",
+      body: form,
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(201);
   });
 });

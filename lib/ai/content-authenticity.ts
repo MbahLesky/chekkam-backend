@@ -16,14 +16,6 @@ export type ContentAuthenticityResult = {
   explanation: string[];
 };
 
-const NOT_SUPPORTED: ContentAuthenticityResult = {
-  status: "not_supported",
-  ai_likelihood: "unknown",
-  confidence: null,
-  indicators: {},
-  explanation: [],
-};
-
 const UNAVAILABLE: ContentAuthenticityResult = {
   status: "unavailable",
   ai_likelihood: "unknown",
@@ -201,15 +193,72 @@ export async function analyzeDocumentAuthenticity(
 }
 
 /**
- * Video/audio authenticity assessment is architecture-ready but not
- * implemented — there is no real deepfake/voice-clone model wired in, so
- * this must report "not_supported" rather than a fabricated verdict (same
- * "never fabricate" contract as the unavailable-path branches above).
+ * There is no deepfake/voice-clone detection model or third-party API wired
+ * in (see docs/api/content-authenticity.md) — a full frame-by-frame or
+ * spectral forensic verdict is not available and must never be simulated.
+ * What IS real and checkable without any model or API: many AI
+ * generation tools embed their own product name in a file's container
+ * metadata (an "encoder"/"software"/"comment" atom or tag), by default,
+ * because they have no reason to hide it. Scanning for those known
+ * identifiers is a direct, evidence-based signal — not a probabilistic
+ * guess — so unlike the LLM-based analyzers above, a match here is
+ * reported even though it wasn't produced by a model. A miss proves
+ * nothing (metadata is trivial to strip or re-encode away), so it must
+ * still resolve to "unavailable", never a false "no AI indicators found".
  */
-export function videoAuthenticityStatus(): ContentAuthenticityResult {
-  return NOT_SUPPORTED;
+const VIDEO_TOOL_SIGNATURES = [
+  "runwayml",
+  "runway ml",
+  "pika labs",
+  "pika.art",
+  "kling ai",
+  "luma ai",
+  "luma dream machine",
+  "synthesia",
+  "heygen",
+  "d-id",
+  "genmo",
+  "haiper",
+  "sora openai",
+];
+
+const AUDIO_TOOL_SIGNATURES = [
+  "elevenlabs",
+  "eleven labs",
+  "play.ht",
+  "playht",
+  "murf.ai",
+  "resemble.ai",
+  "descript overdub",
+  "wellsaid",
+  "coqui tts",
+  "tortoise-tts",
+];
+
+/** Case-insensitive scan of a file's raw bytes for a known tool identifier. */
+function findToolSignature(buffer: Buffer, signatures: string[]): string | null {
+  const haystack = buffer.toString("latin1").toLowerCase();
+  return signatures.find((signature) => haystack.includes(signature)) ?? null;
 }
 
-export function audioAuthenticityStatus(): ContentAuthenticityResult {
-  return NOT_SUPPORTED;
+function metadataSignatureResult(matched: string | null): ContentAuthenticityResult {
+  if (!matched) return UNAVAILABLE;
+  return {
+    status: "done",
+    ai_likelihood: "high",
+    confidence: "medium",
+    indicators: { ai_tool_signature_found: true, matched_tool: matched },
+    explanation: [
+      `This file's metadata contains the identifier "${matched}", which is associated with an AI generation tool.`,
+      "This is a direct metadata match, not a probabilistic guess — but metadata can be stripped or edited, so its absence never confirms a file is authentic.",
+    ],
+  };
+}
+
+export function analyzeVideoAuthenticity(buffer: Buffer): ContentAuthenticityResult {
+  return metadataSignatureResult(findToolSignature(buffer, VIDEO_TOOL_SIGNATURES));
+}
+
+export function analyzeAudioAuthenticity(buffer: Buffer): ContentAuthenticityResult {
+  return metadataSignatureResult(findToolSignature(buffer, AUDIO_TOOL_SIGNATURES));
 }

@@ -11,14 +11,17 @@ import {
   analyzeTextAuthenticity,
   analyzeImageAuthenticity,
   analyzeDocumentAuthenticity,
-  videoAuthenticityStatus,
-  audioAuthenticityStatus,
+  analyzeVideoAuthenticity,
+  analyzeAudioAuthenticity,
   ContentAuthenticityResult,
 } from "@/lib/ai/content-authenticity";
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10MB (text/image/document)
+const MAX_VIDEO_AUDIO_BYTES = 50 * 1024 * 1024; // 50MB — clips run larger than a scanned document
 const IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const DOCUMENT_MIME_TYPES = new Set(["application/pdf"]);
+const VIDEO_MIME_PREFIX = "video/";
+const AUDIO_MIME_PREFIX = "audio/";
 const RATE_LIMIT = 10;
 const RATE_WINDOW_SECONDS = 10 * 60;
 
@@ -29,11 +32,15 @@ const textSchema = z.object({
 
 /**
  * POST /api/ai/content-authenticity — best-effort, advisory-only assessment
- * of whether submitted text/image/document shows AI-generation/manipulation
+ * of whether submitted text/image/document/video/audio shows AI-generation
  * indicators. NOT a forensic tool — see lib/ai/content-authenticity.ts's
- * confidence cap and docs/api/content-authenticity.md. video/audio return
- * "not_supported" immediately (architecture-ready, not implemented).
- * Anonymous submission allowed, same policy as /api/ocr/upload.
+ * confidence cap and docs/api/content-authenticity.md. There is no deepfake/
+ * voice-clone detection model or third-party API wired in: video/audio only
+ * get a direct metadata-signature scan (real evidence when it matches, but a
+ * miss is reported as "unavailable", never a false "no AI indicators
+ * found" — see analyzeVideoAuthenticity/analyzeAudioAuthenticity's doc
+ * comment for why). Anonymous submission allowed, same policy as
+ * /api/ocr/upload.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -74,16 +81,50 @@ export async function POST(req: NextRequest) {
       if (!(file instanceof File)) {
         throw new ValidationError("file is required (multipart/form-data).", "file");
       }
-      if (file.size > MAX_FILE_BYTES) {
-        throw new ValidationError("File is too large (10MB limit).", "file");
-      }
-      if (kind === "video") {
-        checkContentType = "video";
-        result = videoAuthenticityStatus();
-      } else if (kind === "audio") {
-        checkContentType = "audio";
-        result = audioAuthenticityStatus();
+
+      if (kind === "video" || kind === "audio") {
+        const limit = MAX_VIDEO_AUDIO_BYTES;
+        if (file.size > limit) {
+          throw new ValidationError(
+            `File is too large (${Math.round(limit / (1024 * 1024))}MB limit).`,
+            "file"
+          );
+        }
+        const buffer = Buffer.from(await file.arrayBuffer());
+        const sniffed = await fileTypeFromBuffer(buffer);
+        const expectedPrefix = kind === "video" ? VIDEO_MIME_PREFIX : AUDIO_MIME_PREFIX;
+        // file-type's magic-byte database doesn't cover every real-world
+        // container (some MOV/M4A variants come back undetected) — only
+        // reject a *confirmed* mismatch (sniffed as something else
+        // entirely), not an inconclusive sniff, since the metadata scan
+        // below doesn't depend on the container being perfectly identified.
+        if (sniffed && !sniffed.mime.startsWith(expectedPrefix)) {
+          throw new ValidationError(
+            `File does not look like a ${kind} file.`,
+            "file"
+          );
+        }
+
+        const { data: evidence } = await admin
+          .from("evidence")
+          .insert({
+            file_hash: hashDocument(buffer),
+            file_type: sniffed?.mime ?? `${kind}/unknown`,
+            status: "done",
+          })
+          .select("id")
+          .single();
+        evidenceId = evidence?.id ?? null;
+
+        checkContentType = kind;
+        result =
+          kind === "video"
+            ? analyzeVideoAuthenticity(buffer)
+            : analyzeAudioAuthenticity(buffer);
       } else {
+        if (file.size > MAX_FILE_BYTES) {
+          throw new ValidationError("File is too large (10MB limit).", "file");
+        }
         const buffer = Buffer.from(await file.arrayBuffer());
         const sniffed = await fileTypeFromBuffer(buffer);
         const mime = sniffed?.mime;

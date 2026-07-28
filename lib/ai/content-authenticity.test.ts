@@ -3,8 +3,8 @@ import {
   analyzeTextAuthenticity,
   analyzeImageAuthenticity,
   analyzeDocumentAuthenticity,
-  videoAuthenticityStatus,
-  audioAuthenticityStatus,
+  analyzeVideoAuthenticity,
+  analyzeAudioAuthenticity,
 } from "@/lib/ai/content-authenticity";
 
 vi.mock("jimp", () => ({
@@ -37,13 +37,31 @@ describe("content authenticity — no OPENAI_API_KEY", () => {
   });
 });
 
-describe("video/audio — always not_supported", () => {
-  it("video returns not_supported without any processing", () => {
-    expect(videoAuthenticityStatus().status).toBe("not_supported");
+describe("video/audio — metadata signature scan (no model/API involved)", () => {
+  it("video: reports unavailable when no known AI-tool signature is present", () => {
+    const result = analyzeVideoAuthenticity(Buffer.from("just some ordinary video bytes"));
+    expect(result.status).toBe("unavailable");
+    expect(result.confidence).toBeNull();
   });
 
-  it("audio returns not_supported without any processing", () => {
-    expect(audioAuthenticityStatus().status).toBe("not_supported");
+  it("video: reports a real match, never fabricated, when a known tool identifier is embedded", () => {
+    const result = analyzeVideoAuthenticity(Buffer.from("...moov...udta...RunwayML export..."));
+    expect(result.status).toBe("done");
+    expect(result.ai_likelihood).toBe("high");
+    expect(result.confidence).toBe("medium");
+    expect(result.indicators.matched_tool).toBe("runwayml");
+    expect(result.explanation.length).toBeGreaterThan(0);
+  });
+
+  it("audio: reports unavailable when no known AI-tool signature is present", () => {
+    const result = analyzeAudioAuthenticity(Buffer.from("just some ordinary audio bytes"));
+    expect(result.status).toBe("unavailable");
+  });
+
+  it("audio: reports a real match when a known voice-clone tool identifier is embedded", () => {
+    const result = analyzeAudioAuthenticity(Buffer.from("ID3 comment: generated via ElevenLabs API"));
+    expect(result.status).toBe("done");
+    expect(result.indicators.matched_tool).toBe("elevenlabs");
   });
 });
 
