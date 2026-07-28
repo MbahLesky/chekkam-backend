@@ -72,6 +72,7 @@ export const institutionSignupSchema = z.object({
     "media",
     "civil_registry",
     "other",
+    "manufacturer",
   ]),
   officer_name: z.string().min(1),
   email: z.string().email(),
@@ -90,10 +91,53 @@ export const institutionCreateSchema = z.object({
     "media",
     "civil_registry",
     "other",
+    "manufacturer",
   ]),
   contact_email: z.string().email().optional(),
   contact_phone: z.string().optional(),
 });
+
+// Phase 10 — Product Authenticity Platform
+export const PRODUCT_CATEGORIES = [
+  "medicine",
+  "food",
+  "agriculture",
+  "electronics",
+  "construction_materials",
+  "automotive_parts",
+  "engine_oil",
+  "cosmetics",
+  "luxury",
+  "alcohol",
+  "beverages",
+  "retail",
+  "other",
+] as const;
+
+export const productRegisterSchema = z.object({
+  institution_id: z.string().uuid(),
+  product_name: z.string().min(1),
+  category: z.enum(PRODUCT_CATEGORIES),
+  batch_number: z.string().optional(),
+  manufactured_at: z
+    .string()
+    .refine((val) => !isNaN(Date.parse(val)), "manufactured_at must be a valid date")
+    .optional(),
+  expiry_date: z
+    .string()
+    .refine((val) => !isNaN(Date.parse(val)), "expiry_date must be a valid date")
+    .optional(),
+});
+
+export const productStatusUpdateSchema = z
+  .object({
+    action: z.enum(["recall", "mark_stolen", "reactivate"]),
+    reason: z.string().min(1).optional(),
+  })
+  .refine((data) => data.action === "reactivate" || !!data.reason, {
+    message: "reason is required for recall and mark_stolen",
+    path: ["reason"],
+  });
 
 export const institutionStatusUpdateSchema = z.object({
   status: z.enum(["active", "suspended"]),
