@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { Jimp } from "jimp";
 import { getAiConfig } from "@/lib/ai/config";
 import { extractText } from "@/lib/ai/ocr";
 
@@ -21,7 +20,10 @@ const NOT_SUPPORTED: ContentAuthenticityResult = {
   ai_likelihood: "unknown",
   confidence: null,
   indicators: {},
-  explanation: [],
+  explanation: [
+    "Chekkam cannot yet perform a forensic video or audio deepfake assessment from this file.",
+    "Share the original public link so we can check whether it came from a registered official source.",
+  ],
 };
 
 const UNAVAILABLE: ContentAuthenticityResult = {
@@ -29,7 +31,10 @@ const UNAVAILABLE: ContentAuthenticityResult = {
   ai_likelihood: "unknown",
   confidence: null,
   indicators: {},
-  explanation: [],
+  explanation: [
+    "An AI-authenticity provider is not configured or did not return a usable assessment.",
+    "No AI-generation conclusion has been made.",
+  ],
 };
 
 const AUTHENTICITY_TIMEOUT_MS = 20_000;
@@ -120,20 +125,9 @@ export async function analyzeTextAuthenticity(text: string): Promise<ContentAuth
     };
   }
 
-  // Heuristic fallback for text when LLM API key is not present
-  const isGeneric = text.length > 100 && (text.includes("Furthermore") || text.includes("In conclusion") || text.includes("Delve"));
-  return {
-    status: "done",
-    ai_likelihood: isGeneric ? "medium" : "low",
-    confidence: "medium",
-    indicators: {
-      repetitive_phrasing_detected: isGeneric,
-      unnatural_uniformity: isGeneric,
-    },
-    explanation: isGeneric
-      ? ["Text uses highly structured, generic phrasing characteristic of AI language models."]
-      : ["No obvious AI-generation text patterns detected in the submitted content."],
-  };
+  // A generic phrase/structure heuristic is not reliable enough to label a
+  // person's writing as AI-generated, particularly for multilingual users.
+  return UNAVAILABLE;
 }
 
 const IMAGE_SYSTEM_PROMPT =
@@ -149,21 +143,10 @@ const IMAGE_SYSTEM_PROMPT =
 /** Coarse, best-effort EXIF-presence check: real camera photos usually carry
  * rich EXIF; many AI-generated or metadata-stripped images don't. A weak
  * supplementary signal only — never on its own conclusive. */
-async function hasExifMetadata(buffer: Buffer): Promise<boolean | "unknown"> {
-  try {
-    const image = await Jimp.read(buffer);
-    const exif = (image as unknown as { _exif?: { tags?: Record<string, unknown> } })._exif;
-    return !!exif?.tags && Object.keys(exif.tags).length > 0;
-  } catch {
-    return "unknown";
-  }
-}
-
 export async function analyzeImageAuthenticity(
   buffer: Buffer,
   mimeType: string
 ): Promise<ContentAuthenticityResult> {
-  const exifPresent = await hasExifMetadata(buffer);
   const parsed = await callVisionOrTextModel(IMAGE_SYSTEM_PROMPT, [
     { type: "text", text: "Assess this image for AI-generation/manipulation indicators." },
     { type: "image_url", image_url: { url: `data:${mimeType};base64,${buffer.toString("base64")}` } },
@@ -173,26 +156,14 @@ export async function analyzeImageAuthenticity(
       status: "done",
       ai_likelihood: parsed.ai_likelihood,
       confidence: clampConfidence(parsed.confidence),
-      indicators: { ...parsed.indicators, exif_metadata_present: exifPresent },
+      indicators: parsed.indicators,
       explanation: parsed.explanation,
     };
   }
 
-  // Heuristic analysis when LLM API key is not present
-  const isLikelyAi = exifPresent === false;
-  return {
-    status: "done",
-    ai_likelihood: isLikelyAi ? "medium" : "low",
-    confidence: "medium",
-    indicators: {
-      exif_metadata_present: exifPresent,
-      compression_artifacts_detected: true,
-      synthetic_texture_patterns: isLikelyAi,
-    },
-    explanation: isLikelyAi
-      ? ["Image lacks standard camera EXIF metadata often stripped or omitted in AI generators.", "Advisory signal: inspect fine details, hands, and text for synthetic rendering."]
-      : ["Standard image structure verified. Advisory visual check complete."],
-  };
+  // Social platforms commonly strip EXIF and recompress images. Neither is a
+  // trustworthy AI-generation signal on its own.
+  return UNAVAILABLE;
 }
 
 const DOCUMENT_SYSTEM_PROMPT =
@@ -230,19 +201,7 @@ export async function analyzeDocumentAuthenticity(
     }
   }
 
-  return {
-    status: "done",
-    ai_likelihood: "low",
-    confidence: "medium",
-    indicators: {
-      document_structure_valid: true,
-      ocr_text_extracted: ocr.status === "done",
-    },
-    explanation: [
-      "Document format verified against official layout conventions.",
-      "No obvious synthetic typography or layout anomalies found.",
-    ],
-  };
+  return UNAVAILABLE;
 }
 
 /**
@@ -250,34 +209,9 @@ export async function analyzeDocumentAuthenticity(
  * Cross-references media features and web search index against official news outlets (CRTV, BBC).
  */
 export function videoAuthenticityStatus(): ContentAuthenticityResult {
-  return {
-    status: "done",
-    ai_likelihood: "medium",
-    confidence: "medium",
-    indicators: {
-      facial_sync_anomalies: true,
-      official_outlet_match: false,
-      crtv_bbc_web_crawled: true,
-    },
-    explanation: [
-      "This video could not be verified against official broadcasts (CRTV, BBC).",
-      "Heuristic analysis detected potential frame synchronization and synthetic lighting artifacts.",
-    ],
-  };
+  return NOT_SUPPORTED;
 }
 
 export function audioAuthenticityStatus(): ContentAuthenticityResult {
-  return {
-    status: "done",
-    ai_likelihood: "medium",
-    confidence: "medium",
-    indicators: {
-      voice_clone_spectral_flatness: true,
-      official_outlet_match: false,
-    },
-    explanation: [
-      "Voice pitch and spectral patterns match synthetic voice-cloning indicators.",
-      "Content not found in official press databases.",
-    ],
-  };
+  return NOT_SUPPORTED;
 }

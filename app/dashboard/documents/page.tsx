@@ -33,6 +33,14 @@ type Document = {
   expiry_date: string | null;
 };
 
+type SignableInstitution = {
+  id: string;
+  name: string;
+  type: string | null;
+  verified: boolean;
+  status: "active" | "pending" | "suspended";
+};
+
 const inputClass =
   "w-full rounded-[var(--radius-chekkam-sm)] border border-chekkam-border bg-chekkam-tint px-3.5 py-2.5 text-sm text-chekkam-ink outline-none transition focus:border-chekkam-primary focus:bg-chekkam-surface-raised focus:ring-2 focus:ring-chekkam-primary/20";
 
@@ -53,12 +61,12 @@ export default function DocumentsDashboardPage() {
   const [certLoadingId, setCertLoadingId] = useState<string | null>(null);
   const [certError, setCertError] = useState<string | null>(null);
 
-  async function getAccessToken(): Promise<string | undefined> {
+  const getAccessToken = useCallback(async (): Promise<string | undefined> => {
     const {
       data: { session },
     } = (await supabase?.auth.getSession()) ?? { data: { session: null } };
     return session?.access_token;
-  }
+  }, [supabase]);
 
   const authHeaders = useCallback(async () => {
     const {
@@ -293,11 +301,49 @@ function SignDocumentPanel({
   const [recipientName, setRecipientName] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [institutions, setInstitutions] = useState<SignableInstitution[]>([]);
+  const [institutionsLoading, setInstitutionsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    async function loadInstitutions() {
+      setInstitutionsLoading(true);
+      try {
+        const token = await getAccessToken();
+        const response = await fetch("/api/institutions/mine", {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body?.error?.message ?? t("somethingWrong"));
+        const available = (body.institutions ?? []) as SignableInstitution[];
+        if (cancelled) return;
+        setInstitutions(available);
+        setInstitutionId((current) =>
+          current && available.some((institution) => institution.id === current)
+            ? current
+            : (available[0]?.id ?? "")
+        );
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : t("somethingWrong"));
+      } finally {
+        if (!cancelled) setInstitutionsLoading(false);
+      }
+    }
+    void loadInstitutions();
+    return () => {
+      cancelled = true;
+    };
+  }, [getAccessToken, open, t]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!institutionId) {
+      setError(t("noSigningInstitution"));
+      return;
+    }
     if (!file) {
       setError(t("chooseFileToSign"));
       return;
@@ -345,8 +391,24 @@ function SignDocumentPanel({
           className="absolute right-8 z-10 mt-3 flex w-96 flex-col gap-3 rounded-[var(--radius-chekkam)] border border-chekkam-border bg-chekkam-surface-raised p-6 shadow-chekkam-lg"
         >
           <label className="block">
-            <span className="text-xs font-medium text-chekkam-muted">{t("institutionId")}</span>
-            <input required value={institutionId} onChange={(e) => setInstitutionId(e.target.value)} placeholder="a1c2d3e4-...." className={`${inputClass} mt-1 font-[family-name:var(--font-data)]`} />
+            <span className="text-xs font-medium text-chekkam-muted">{t("signingInstitution")}</span>
+            <select
+              required
+              value={institutionId}
+              onChange={(e) => setInstitutionId(e.target.value)}
+              disabled={institutionsLoading || institutions.length === 0}
+              className={`${inputClass} mt-1`}
+            >
+              <option value="">{institutionsLoading ? t("loading") : t("selectSigningInstitution")}</option>
+              {institutions.map((institution) => (
+                <option key={institution.id} value={institution.id}>
+                  {institution.name}{institution.verified ? " — verified" : ""}
+                </option>
+              ))}
+            </select>
+            {!institutionsLoading && institutions.length === 0 && (
+              <p className="mt-1 text-xs text-status-danger">{t("noSigningInstitution")}</p>
+            )}
           </label>
           <label className="block">
             <span className="text-xs font-medium text-chekkam-muted">{t("documentType")}</span>
@@ -425,6 +487,14 @@ function SignResultModal({
       >
         {t("downloadCertificate")}
       </Button>
+      <a
+        href={result.qr_payload}
+        target="_blank"
+        rel="noreferrer"
+        className="mt-3 block w-full rounded-[var(--radius-chekkam-sm)] border border-chekkam-border px-4 py-2.5 text-center text-sm font-semibold text-chekkam-primary transition hover:bg-chekkam-tint"
+      >
+        Open public verification page
+      </a>
       <p className="mt-2 text-center text-xs text-chekkam-faint">{t("certificateHint")}</p>
       <Button onClick={onClose} variant="ghost" className="mt-3 w-full">
         {t("done")}

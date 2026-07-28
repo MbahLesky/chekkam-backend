@@ -8,11 +8,21 @@ import { useI18n } from "@/components/i18n-provider";
 import { getVerifyStatusStyle } from "@/lib/verify-status-style";
 
 type VerifyResult = {
-  status: "genuine" | "tampered" | "revoked" | "not_found";
+  status: "genuine" | "tampered" | "revoked" | "expired" | "not_found";
   institution?: string | null;
+  institution_verified?: boolean;
   document_type?: string;
   verification_id?: string;
   reason?: string;
+};
+
+type DocumentAssessment = {
+  mode: "registry_verification" | "trust_report";
+  is_proof: boolean;
+  registry: VerifyResult;
+  status: "genuine" | "tampered" | "revoked" | "expired" | "not_found" | "not_in_registry" | "external_signature_verified" | "signals_of_concern";
+  signals: Array<{ layer: string; nature: string; result: string; detail: string }>;
+  recommended_action: string;
 };
 
 export default function VerifyHubPage() {
@@ -20,7 +30,7 @@ export default function VerifyHubPage() {
   const router = useRouter();
   const [verificationId, setVerificationId] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [uploadResult, setUploadResult] = useState<VerifyResult | null>(null);
+  const [uploadResult, setUploadResult] = useState<DocumentAssessment | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,14 +58,14 @@ export default function VerifyHubPage() {
       form.set("language", lang);
       if (verificationId.trim()) form.set("verification_id", verificationId.trim());
 
-      const res = await fetch(`/api/documents/verify-upload?lang=${lang}`, {
+      const res = await fetch(`/api/documents/assess?lang=${lang}`, {
         method: "POST",
         headers: { "Accept-Language": lang },
         body: form,
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error?.message ?? t("failedVerifyDocument"));
-      setUploadResult(body as VerifyResult);
+      setUploadResult(body as DocumentAssessment);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("somethingWrong"));
     } finally {
@@ -63,7 +73,8 @@ export default function VerifyHubPage() {
     }
   }
 
-  const style = uploadResult ? getVerifyStatusStyle(uploadResult.status, lang) : null;
+  const registryResult = uploadResult?.mode === "registry_verification" ? uploadResult.registry : null;
+  const style = registryResult ? getVerifyStatusStyle(registryResult.status, lang) : null;
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-2xl flex-1 flex-col justify-center px-6 py-16">
@@ -120,6 +131,9 @@ export default function VerifyHubPage() {
             className="mt-1.5 w-full text-sm text-chekkam-muted file:mr-3 file:rounded-[var(--radius-chekkam-sm)] file:border-0 file:bg-chekkam-tint file:px-3 file:py-2 file:text-sm file:font-medium file:text-chekkam-ink"
           />
         </label>
+        <p className="text-xs text-chekkam-faint">
+          For an exact Genuine/Tampered result, upload the original digital file. A photo, screenshot, or re-scan has different bytes; use its QR or verification ID to check the issuer.
+        </p>
         {error && <p className="text-sm text-status-danger">{error}</p>}
         <button
           type="submit"
@@ -130,7 +144,7 @@ export default function VerifyHubPage() {
         </button>
       </form>
 
-      {uploadResult && style && (
+      {registryResult && style && (
         <div className="mt-8 rounded-[var(--radius-chekkam)] border border-chekkam-border bg-chekkam-surface-raised p-8 text-center shadow-chekkam-md">
           <div
             className={`mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br ${style.gradient} text-3xl text-white shadow-chekkam-lg`}
@@ -141,11 +155,45 @@ export default function VerifyHubPage() {
             {style.label}
           </h2>
           <p className="mx-auto mt-2 max-w-xs text-sm text-chekkam-muted">{style.guidance}</p>
-          {uploadResult.institution && (
+          {registryResult.institution && (
             <p className="mt-3 text-sm text-chekkam-ink">
-              {t("issuedBy")} <span className="font-semibold">{uploadResult.institution}</span>
+              {t("issuedBy")} <span className="font-semibold">{registryResult.institution}</span>
             </p>
           )}
+          {registryResult.institution && (
+            <p className="mt-1 text-xs text-chekkam-muted">
+              {registryResult.institution_verified ? "Issuing organisation verified by Chekkam" : "Issuing organisation is not independently verified by Chekkam"}
+            </p>
+          )}
+        </div>
+      )}
+
+      {uploadResult?.mode === "trust_report" && (
+        <div className="mt-8 rounded-[var(--radius-chekkam)] border border-chekkam-border bg-chekkam-surface-raised p-8 shadow-chekkam-md">
+          <div className="text-xs font-semibold uppercase tracking-wider text-chekkam-primary">Document trust report</div>
+          <h2 className="mt-2 font-[family-name:var(--font-heading)] text-2xl font-semibold text-chekkam-ink">
+            {uploadResult.status === "external_signature_verified"
+              ? "External PDF signature is intact"
+              : uploadResult.status === "signals_of_concern"
+                ? "Signals of concern"
+                : "Not in the Chekkam registry"}
+          </h2>
+          <p className="mt-2 text-sm text-chekkam-muted">
+            {uploadResult.status === "external_signature_verified"
+              ? "The PDF’s embedded signature is intact, but its issuer is not yet verified in Chekkam’s registry."
+              : uploadResult.status === "signals_of_concern"
+                ? "A deterministic signature issue was found. Do not rely on this document until the issuer provides a fresh copy."
+                : "This is not proof that the document is false. Chekkam cannot cryptographically prove it from our registry."}
+          </p>
+          <div className="mt-5 space-y-3">
+            {uploadResult.signals.map((signal) => (
+              <div key={`${signal.layer}-${signal.result}`} className="rounded-[var(--radius-chekkam-sm)] bg-chekkam-tint p-3 text-sm">
+                <p className="font-semibold text-chekkam-ink">{signal.layer.replaceAll("_", " ")} · {signal.nature} check</p>
+                <p className="mt-1 text-chekkam-muted">{signal.detail}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-5 text-sm font-semibold text-chekkam-ink">{uploadResult.recommended_action}</p>
         </div>
       )}
 
