@@ -45,12 +45,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // For prototype purposes, since we can't reliably upload large video files and run heavy ML 
-    // synchronously, we will simulate video AI generation detection and crawling.
-    // In a real app, this would upload to S3/Supabase Storage, queue a background job,
-    // and use OpenAI video endpoints or specific deepfake APIs.
-    
-    // We'll create a report first
     const { data: report, error: insertError } = await supabaseAdmin
       .from("reports")
       .insert({

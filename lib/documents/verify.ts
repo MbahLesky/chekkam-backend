@@ -219,6 +219,14 @@ export async function verifyByUpload(
     .maybeSingle();
 
   if (!doc) {
+    // If hash-only lookup failed, check if the uploaded file is a Chekkam Certificate or contains a Verification ID (CHK-XXXX-XXXX)
+    const bufferString = fileBuffer.toString("binary");
+    const match = bufferString.match(/CHK-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}/i);
+    if (match) {
+      const extractedId = match[0].toUpperCase();
+      return verifyByIdOrPin(admin, extractedId, channel);
+    }
+
     await logAttempt(admin, null, "(hash-only lookup)", "not_found", channel);
     return { status: "not_found" };
   }
