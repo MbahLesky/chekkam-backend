@@ -50,6 +50,17 @@ describe("POST /api/security/check", () => {
     expect(body.error.field).toBe("url");
   });
 
+  it("returns 400 (not 500) for a malformed multipart body", async () => {
+    const { POST } = await import("@/app/api/security/check/route");
+    const req = new NextRequest("http://localhost/api/security/check", {
+      method: "POST",
+      headers: { "content-type": "multipart/form-data; boundary=broken" },
+      body: "this is not a valid multipart body",
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+  });
+
   it("accepts a valid text check and returns the result", async () => {
     const { POST } = await import("@/app/api/security/check/route");
     const req = new NextRequest("http://localhost/api/security/check", {

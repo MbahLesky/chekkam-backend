@@ -23,6 +23,49 @@ function makeRequest(body: unknown) {
   });
 }
 
+describe("GET /api/institutions/:id", () => {
+  beforeEach(() => {
+    fromMock.mockReset();
+  });
+
+  it("returns the active institution's public detail fields", async () => {
+    const instBuilder: Record<string, unknown> = {
+      select: vi.fn(() => instBuilder),
+      eq: vi.fn(() => instBuilder),
+      maybeSingle: vi.fn(async () => ({
+        data: { id: "inst-1", name: "Test Hospital", type: "hospital", verified: true, status: "active" },
+        error: null,
+      })),
+    };
+    fromMock.mockReturnValue(instBuilder);
+
+    const { GET } = await import("@/app/api/institutions/[id]/route");
+    const res = await GET(new NextRequest("http://localhost/api/institutions/inst-1"), {
+      params: Promise.resolve({ id: "inst-1" }),
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.name).toBe("Test Hospital");
+    expect(instBuilder.eq).toHaveBeenCalledWith("status", "active");
+  });
+
+  it("returns 404 for a pending/suspended or unknown institution", async () => {
+    const instBuilder: Record<string, unknown> = {
+      select: vi.fn(() => instBuilder),
+      eq: vi.fn(() => instBuilder),
+      maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+    };
+    fromMock.mockReturnValue(instBuilder);
+
+    const { GET } = await import("@/app/api/institutions/[id]/route");
+    const res = await GET(new NextRequest("http://localhost/api/institutions/inst-2"), {
+      params: Promise.resolve({ id: "inst-2" }),
+    });
+    expect(res.status).toBe(404);
+  });
+});
+
 describe("PATCH /api/institutions/:id", () => {
   beforeEach(() => {
     requireUser.mockReset();

@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { requireUser, requireRole } from "@/lib/auth";
+import { requireUser, requireAlertPublisher } from "@/lib/auth";
 import { publicAlertCreateSchema } from "@/lib/validation/schemas";
 import { parseBody } from "@/lib/validation/parse";
 import { toErrorResponse } from "@/lib/errors";
 
 /**
  * GET /api/public-alerts — public, human-approved alerts only (SRS FR-090, 6.7).
- * ?scope=drafts (analyst/admin only) lists all alerts, including unpublished
- * drafts, for the dashboard's promote/edit/publish workflow (Phase 2 §7.3).
+ * ?scope=drafts lists unpublished drafts for the dashboard's promote/edit/publish
+ * workflow (Phase 2 §7.3): analyst/admin/super_admin see every draft; an
+ * institution_officer of a verified institution (Phase 11) sees only their own.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -16,13 +17,17 @@ export async function GET(req: NextRequest) {
 
     if (req.nextUrl.searchParams.get("scope") === "drafts") {
       const profile = await requireUser(req);
-      requireRole(profile, ["analyst", "admin", "super_admin"]);
+      await requireAlertPublisher(profile, admin);
 
-      const { data, error } = await admin
+      let query = admin
         .from("public_alerts")
         .select("*")
         .order("created_at", { ascending: false })
         .limit(100);
+      if (profile.role === "institution_officer") {
+        query = query.eq("created_by", profile.id);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return NextResponse.json({ alerts: data });
     }
@@ -47,14 +52,18 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** POST /api/public-alerts — analyst drafts an alert, unpublished until reviewed (SRS 6.7). */
+/**
+ * POST /api/public-alerts — drafts an alert, unpublished until reviewed
+ * (SRS 6.7). analyst/admin/super_admin, or an institution_officer of a
+ * verified institution (Phase 11 — Cameroon Emergency Trust Bulletin).
+ */
 export async function POST(req: NextRequest) {
   try {
     const profile = await requireUser(req);
-    requireRole(profile, ["analyst", "admin", "super_admin"]);
+    const admin = getSupabaseAdmin();
+    await requireAlertPublisher(profile, admin);
 
     const body = parseBody(publicAlertCreateSchema, await req.json());
-    const admin = getSupabaseAdmin();
 
     const { data, error } = await admin
       .from("public_alerts")

@@ -75,3 +75,39 @@ export async function requireInstitutionMember(
     throw new AuthError("You are not a member of this institution.", 403);
   }
 }
+
+/**
+ * Throws unless `profile` is analyst/admin/super_admin, or an
+ * institution_officer belonging to a verified, active institution (Phase 11
+ * — Cameroon Emergency Trust Bulletin: "only verified institutional accounts
+ * may publish trusted security advisories"). Officers of a pending/unverified
+ * institution are deliberately excluded — membership alone isn't enough.
+ */
+export async function requireAlertPublisher(
+  profile: AuthedProfile,
+  client?: SupabaseClient
+) {
+  if (["analyst", "admin", "super_admin"].includes(profile.role)) return;
+  if (profile.role === "institution_officer") {
+    const admin = client ?? getSupabaseAdmin();
+    const { data: memberships } = await admin
+      .from("institution_members")
+      .select("institution_id")
+      .eq("user_id", profile.id);
+    const institutionIds = (memberships ?? []).map((m) => m.institution_id as string);
+    if (institutionIds.length > 0) {
+      const { data: verified } = await admin
+        .from("institutions")
+        .select("id")
+        .in("id", institutionIds)
+        .eq("verified", true)
+        .eq("status", "active")
+        .limit(1);
+      if (verified && verified.length > 0) return;
+    }
+  }
+  throw new AuthError(
+    "This action requires analyst/admin, or an officer of a verified, active institution.",
+    403
+  );
+}

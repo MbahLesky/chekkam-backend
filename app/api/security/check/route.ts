@@ -55,7 +55,12 @@ export async function POST(req: NextRequest) {
     const contentType = req.headers.get("content-type") ?? "";
 
     if (contentType.includes("multipart/form-data")) {
-      const form = await req.formData();
+      let form: FormData;
+      try {
+        form = await req.formData();
+      } catch {
+        throw new ValidationError("file is required (multipart/form-data).", "file");
+      }
       const file = form.get("file");
       if (!(file instanceof File)) {
         throw new ValidationError("file is required (multipart/form-data).", "file");

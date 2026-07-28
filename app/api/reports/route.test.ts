@@ -8,6 +8,10 @@ vi.mock("@/lib/auth", () => ({
   resolveOptionalUserId,
 }));
 
+vi.mock("@/lib/rate-limit", () => ({
+  checkRateLimit: vi.fn(async () => ({ allowed: true, remaining: 19, limit: 20 })),
+}));
+
 const fromMock = vi.fn();
 vi.mock("@/lib/supabase/admin", () => ({
   getSupabaseAdmin: () => ({ from: fromMock }),

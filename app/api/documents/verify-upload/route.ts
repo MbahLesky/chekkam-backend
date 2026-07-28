@@ -40,7 +40,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const form = await req.formData();
+    let form: FormData;
+    try {
+      form = await req.formData();
+    } catch {
+      throw new ValidationError(tt("fileRequired", preferredLang), "file");
+    }
     preferredLang = pickLang(
       (form.get("language") as string | null) ?? req.nextUrl.searchParams.get("lang"),
       req.headers.get("accept-language")

@@ -25,7 +25,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mx-auto grid w-full max-w-4xl grid-cols-1 gap-5 px-6 py-14 sm:grid-cols-3">
+      <section className="mx-auto grid w-full max-w-4xl grid-cols-1 gap-5 px-6 py-14 sm:grid-cols-2 lg:grid-cols-4">
         <ActionCard
           href="/check"
           eyebrow={t("citizens")}
@@ -45,6 +45,13 @@ export default function Home() {
           eyebrow={t("citizens")}
           title={t("publicAlerts")}
           detail={t("publicAlertsDetail")}
+          action={t("tryIt")}
+        />
+        <ActionCard
+          href="/institutions"
+          eyebrow={t("citizens")}
+          title={t("institutionDirectory")}
+          detail={t("institutionDirectoryIntro")}
           action={t("tryIt")}
         />
       </section>

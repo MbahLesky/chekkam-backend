@@ -115,19 +115,15 @@ export async function analyzeTextAuthenticity(text: string): Promise<ContentAuth
     TEXT_SYSTEM_PROMPT,
     `Text submitted for AI-authorship assessment:\n\n"""\n${text}\n"""`
   );
-  if (parsed) {
-    return {
-      status: "done",
-      ai_likelihood: parsed.ai_likelihood,
-      confidence: clampConfidence(parsed.confidence),
-      indicators: parsed.indicators,
-      explanation: parsed.explanation,
-    };
-  }
+  if (!parsed) return UNAVAILABLE;
 
-  // A generic phrase/structure heuristic is not reliable enough to label a
-  // person's writing as AI-generated, particularly for multilingual users.
-  return UNAVAILABLE;
+  return {
+    status: "done",
+    ai_likelihood: parsed.ai_likelihood,
+    confidence: clampConfidence(parsed.confidence),
+    indicators: parsed.indicators,
+    explanation: parsed.explanation,
+  };
 }
 
 const IMAGE_SYSTEM_PROMPT =
@@ -151,19 +147,15 @@ export async function analyzeImageAuthenticity(
     { type: "text", text: "Assess this image for AI-generation/manipulation indicators." },
     { type: "image_url", image_url: { url: `data:${mimeType};base64,${buffer.toString("base64")}` } },
   ]);
-  if (parsed) {
-    return {
-      status: "done",
-      ai_likelihood: parsed.ai_likelihood,
-      confidence: clampConfidence(parsed.confidence),
-      indicators: parsed.indicators,
-      explanation: parsed.explanation,
-    };
-  }
+  if (!parsed) return UNAVAILABLE;
 
-  // Social platforms commonly strip EXIF and recompress images. Neither is a
-  // trustworthy AI-generation signal on its own.
-  return UNAVAILABLE;
+  return {
+    status: "done",
+    ai_likelihood: parsed.ai_likelihood,
+    confidence: clampConfidence(parsed.confidence),
+    indicators: { ...parsed.indicators, exif_metadata_present: exifPresent },
+    explanation: parsed.explanation,
+  };
 }
 
 const DOCUMENT_SYSTEM_PROMPT =
@@ -185,28 +177,28 @@ export async function analyzeDocumentAuthenticity(
   mimeType: string
 ): Promise<ContentAuthenticityResult> {
   const ocr = await extractText(buffer, mimeType);
-  if (ocr.status === "done" && ocr.extracted_text.trim()) {
-    const parsed = await callVisionOrTextModel(
-      DOCUMENT_SYSTEM_PROMPT,
-      `Document text submitted for fabrication assessment:\n\n"""\n${ocr.extracted_text}\n"""`
-    );
-    if (parsed) {
-      return {
-        status: "done",
-        ai_likelihood: parsed.ai_likelihood,
-        confidence: clampConfidence(parsed.confidence),
-        indicators: parsed.indicators,
-        explanation: parsed.explanation,
-      };
-    }
-  }
+  if (ocr.status !== "done" || !ocr.extracted_text.trim()) return UNAVAILABLE;
 
-  return UNAVAILABLE;
+  const parsed = await callVisionOrTextModel(
+    DOCUMENT_SYSTEM_PROMPT,
+    `Document text submitted for fabrication assessment:\n\n"""\n${ocr.extracted_text}\n"""`
+  );
+  if (!parsed) return UNAVAILABLE;
+
+  return {
+    status: "done",
+    ai_likelihood: parsed.ai_likelihood,
+    confidence: clampConfidence(parsed.confidence),
+    indicators: parsed.indicators,
+    explanation: parsed.explanation,
+  };
 }
 
 /**
- * AI Video and Audio generation/deepfake authenticity assessment.
- * Cross-references media features and web search index against official news outlets (CRTV, BBC).
+ * Video/audio authenticity assessment is architecture-ready but not
+ * implemented — there is no real deepfake/voice-clone model wired in, so
+ * this must report "not_supported" rather than a fabricated verdict (same
+ * "never fabricate" contract as the unavailable-path branches above).
  */
 export function videoAuthenticityStatus(): ContentAuthenticityResult {
   return NOT_SUPPORTED;
