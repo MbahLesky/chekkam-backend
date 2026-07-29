@@ -208,10 +208,11 @@ async function ensureSampleDocument(institutionId: string, officerId: string) {
     .select("id, verification_id, pin_code")
     .eq("institution_id", institutionId)
     .eq("document_type", SAMPLE_DOCUMENT_TYPE)
+    .eq("status", "active")
     .maybeSingle();
 
   if (existing) {
-    log(`Sample demo document already exists (verification_id: ${existing.verification_id}, PIN: ${existing.pin_code})`);
+    log(`Active sample demo document already exists (verification_id: ${existing.verification_id}, PIN: ${existing.pin_code})`);
     return { verification_id: existing.verification_id as string, pin_code: existing.pin_code as string };
   }
 
