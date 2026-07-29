@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { requireUser, requireRole } from "@/lib/auth";
 import { AuthError, toErrorResponse } from "@/lib/errors";
+import { fetchDocumentForStatusChange, restoreDocumentCore } from "@/lib/documents/revoke";
 
 /**
  * POST /api/documents/:id/restore — institution officer restores a
@@ -19,12 +20,7 @@ export async function POST(
 
     const admin = getSupabaseAdmin();
 
-    const { data: doc } = await admin
-      .from("documents")
-      .select("id, institution_id, status")
-      .eq("id", id)
-      .maybeSingle();
-
+    const doc = await fetchDocumentForStatusChange(admin, id);
     if (!doc) {
       return NextResponse.json(
         { error: { code: "NOT_FOUND", message: "Document not found." } },
@@ -44,26 +40,7 @@ export async function POST(
       }
     }
 
-    const { data: updated, error } = await admin
-      .from("documents")
-      .update({
-        status: "active",
-        revoked_at: null,
-        revocation_reason: null,
-      })
-      .eq("id", id)
-      .select("id, status, revoked_at, revocation_reason")
-      .single();
-
-    if (error) throw error;
-
-    await admin.from("audit_logs").insert({
-      actor_id: profile.id,
-      action: "document.restore",
-      target_table: "documents",
-      target_id: id,
-    });
-
+    const updated = await restoreDocumentCore(admin, id, profile.id);
     return NextResponse.json(updated);
   } catch (err) {
     return toErrorResponse(err);

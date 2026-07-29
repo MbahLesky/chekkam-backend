@@ -27,6 +27,18 @@ export type SignDocumentInput = {
   auditAction?: string;
   /** ISO date string. Most document types have no expiry (e.g. certificates); optional. */
   expiryDate?: string | null;
+  /**
+   * Pre-chosen verification ID/PIN instead of freshly generated ones.
+   * Default (every existing caller): omit these, get random ones as always.
+   * Only needed when the caller must embed the real ID/PIN into the file's
+   * own visible content *before* signing it — e.g. a certificate template
+   * that prints its own verification ID/QR (scripts/seed-demo-trust.ts) —
+   * since otherwise the printed ID and the DB row's ID could never match.
+   */
+  verificationId?: string;
+  pinCode?: string;
+  /** Overrides the recorded issue timestamp (defaults to now()). For deterministic demo/test data only. */
+  issuedAt?: string;
 };
 
 export type SignDocumentResult = {
@@ -53,8 +65,8 @@ export async function signDocumentCore(
   admin: SupabaseClient,
   input: SignDocumentInput
 ): Promise<SignDocumentResult> {
-  const verificationId = generateVerificationId();
-  const pinCode = generatePinCode();
+  const verificationId = input.verificationId ?? generateVerificationId();
+  const pinCode = input.pinCode ?? generatePinCode();
   const qrPayload = buildVerificationUrl(verificationId);
   const qrImage = await generateQrDataUrl(qrPayload);
 
@@ -79,6 +91,7 @@ export async function signDocumentCore(
       qr_payload: qrPayload,
       pin_code: pinCode,
       expiry_date: input.expiryDate ?? null,
+      issued_at: input.issuedAt,
       original_file_data: embedded ? bufferToBytea(signedBuffer) : null,
       original_file_mime_type: embedded?.mimeType ?? null,
       original_file_name: embedded ? (input.fileName ?? "document") : null,

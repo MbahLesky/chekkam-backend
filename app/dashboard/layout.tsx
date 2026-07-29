@@ -28,6 +28,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     ...(role === "admin" || role === "super_admin"
       ? [{ href: "/dashboard/sources", label: "Verified sources" }]
       : []),
+    ...(role === "admin" || role === "super_admin" || role === "analyst"
+      ? [{ href: "/dashboard/demo-trust", label: "Demo Trust Kit" }]
+      : []),
   ];
 
   const roleLabel: Record<string, string> = {

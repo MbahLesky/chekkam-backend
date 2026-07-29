@@ -11,6 +11,7 @@
     "start": "npm run db:migrate && npm run db:seed && next start",
     "db:migrate": "node scripts/migrate.mjs",
     "db:seed": "tsx scripts/seed.ts",
+    "seed:demo-trust": "tsx scripts/seed-demo-trust.ts",
     "test": "vitest run",
     "lint": "eslint",
     "generate-signing-key": "node scripts/generate-signing-key.mjs",

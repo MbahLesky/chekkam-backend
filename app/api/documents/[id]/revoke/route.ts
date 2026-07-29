@@ -4,6 +4,7 @@ import { requireUser, requireRole } from "@/lib/auth";
 import { documentRevokeSchema } from "@/lib/validation/schemas";
 import { parseBody } from "@/lib/validation/parse";
 import { AuthError, toErrorResponse } from "@/lib/errors";
+import { fetchDocumentForStatusChange, revokeDocumentCore } from "@/lib/documents/revoke";
 
 /**
  * POST /api/documents/:id/revoke — institution officer revokes a signed document.
@@ -21,12 +22,7 @@ export async function POST(
     const body = parseBody(documentRevokeSchema, await req.json());
     const admin = getSupabaseAdmin();
 
-    const { data: doc } = await admin
-      .from("documents")
-      .select("id, institution_id, status")
-      .eq("id", id)
-      .maybeSingle();
-
+    const doc = await fetchDocumentForStatusChange(admin, id);
     if (!doc) {
       return NextResponse.json(
         { error: { code: "NOT_FOUND", message: "Document not found." } },
@@ -46,27 +42,7 @@ export async function POST(
       }
     }
 
-    const { data: updated, error } = await admin
-      .from("documents")
-      .update({
-        status: "revoked",
-        revoked_at: new Date().toISOString(),
-        revocation_reason: body.reason,
-      })
-      .eq("id", id)
-      .select("id, status, revoked_at, revocation_reason")
-      .single();
-
-    if (error) throw error;
-
-    await admin.from("audit_logs").insert({
-      actor_id: profile.id,
-      action: "document.revoke",
-      target_table: "documents",
-      target_id: id,
-      metadata: { reason: body.reason },
-    });
-
+    const updated = await revokeDocumentCore(admin, id, body.reason, profile.id);
     return NextResponse.json(updated);
   } catch (err) {
     return toErrorResponse(err);
