@@ -9,7 +9,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 vi.mock("@/lib/documents/verify", () => ({
   verifyByUpload: vi.fn(async () => ({ status: "authentic" })),
-  verifierChannelFrom: vi.fn(() => "web"),
+  verifierChannelFrom: vi.fn((value: string | null, fallback = "web") => value ?? fallback),
 }));
 
 describe("POST /api/documents/verify-upload", () => {

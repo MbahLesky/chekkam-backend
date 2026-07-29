@@ -15,13 +15,24 @@ export type Fingerprint = {
   textHash: string;
 };
 
+/**
+ * Strips whitespace/punctuation and a leading country code, leaving the bare
+ * 9-digit local number — "+237 677 12 34 56", "237677123456", and
+ * "677123456" must all normalize identically, or the same number written two
+ * ways looks like two different numbers to campaign matching and number-
+ * reputation lookups (Phase 12).
+ */
+export function normalizeCameroonNumber(raw: string): string {
+  return raw.replace(/[\s.\-()]/g, "").replace(/^\+?237/, "");
+}
+
 /** Extracts links, phone numbers, and a normalized text fingerprint. SRS FR-030. */
 export function extractFingerprint(content: string): Fingerprint {
   const urls = dedupe(
     Array.from(content.matchAll(URL_PATTERN)).map((m) => normalizeUrl(m[0]))
   );
   const phoneNumbers = dedupe(
-    Array.from(content.matchAll(PHONE_PATTERN)).map((m) => m[0].replace(/[\s.-]/g, ""))
+    Array.from(content.matchAll(PHONE_PATTERN)).map((m) => normalizeCameroonNumber(m[0]))
   );
   const normalizedText = normalizeText(content);
   const textHash = crypto.createHash("sha256").update(normalizedText).digest("hex");

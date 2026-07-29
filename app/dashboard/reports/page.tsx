@@ -20,9 +20,22 @@ type Report = {
   recommended_action: string | null;
   campaign_id: string | null;
   created_at: string;
+  phone_number: string | null;
+  wallet_number: string | null;
+  merchant_name: string | null;
+  transaction_reference: string | null;
+  network_provider: string | null;
 };
 
-const STATUS_OPTIONS = ["pending", "analyzed", "under_review", "verified_threat", "false_report", "dismissed"];
+const STATUS_OPTIONS = [
+  "pending",
+  "analyzed",
+  "under_review",
+  "verified_threat",
+  "false_report",
+  "dismissed",
+  "resolved",
+];
 const CHANNEL_OPTIONS = ["mobile", "web", "whatsapp", "telegram", "api", "extension", "share_intent"];
 const RISK_OPTIONS = ["low", "medium", "high", "critical"];
 
@@ -206,6 +219,19 @@ export default function ReportsDashboardPage() {
                   )}
                 </div>
                 <p className="mt-2 truncate text-sm text-chekkam-ink">{report.raw_content ?? t("noTextContent")}</p>
+                {(report.phone_number || report.wallet_number || report.merchant_name || report.network_provider) && (
+                  <p className="mt-1 font-[family-name:var(--font-data)] text-xs text-chekkam-muted">
+                    {[
+                      report.network_provider,
+                      report.phone_number,
+                      report.wallet_number,
+                      report.merchant_name,
+                      report.transaction_reference,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                )}
                 {report.recommended_action && (
                   <p className="mt-1 text-xs font-medium text-chekkam-ink">{report.recommended_action}</p>
                 )}
@@ -230,6 +256,9 @@ export default function ReportsDashboardPage() {
                   </Button>
                   <Button onClick={() => updateStatus(report.id, "dismissed")} variant="tint" size="sm">
                     {t("dismiss")}
+                  </Button>
+                  <Button onClick={() => updateStatus(report.id, "resolved")} variant="outline" size="sm">
+                    {t("markResolved")}
                   </Button>
                 </div>
                 <Button
@@ -268,6 +297,7 @@ function statusLabel(status: string, lang: "en" | "fr") {
     verified_threat: { en: "verified threat", fr: "menace confirmée" },
     false_report: { en: "false report", fr: "faux signalement" },
     dismissed: { en: "dismissed", fr: "classé" },
+    resolved: { en: "resolved", fr: "résolu" },
   };
   return labels[status]?.[lang] ?? status;
 }

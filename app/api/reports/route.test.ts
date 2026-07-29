@@ -18,7 +18,10 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 
 vi.mock("@/lib/ai/risk-analysis", () => ({ analyzeContent: vi.fn() }));
-vi.mock("@/lib/campaigns/fingerprint", () => ({ extractFingerprint: vi.fn() }));
+vi.mock("@/lib/campaigns/fingerprint", () => ({
+  extractFingerprint: vi.fn(),
+  normalizeCameroonNumber: vi.fn((raw: string) => raw.replace(/[\s.\-()]/g, "").replace(/^\+?237/, "")),
+}));
 vi.mock("@/lib/campaigns/matcher", () => ({
   matchCampaign: vi.fn(),
   findMatchingUnlinkedReport: vi.fn(),
@@ -129,7 +132,12 @@ describe("POST /api/reports", () => {
     } as never);
 
     const { extractFingerprint } = await import("@/lib/campaigns/fingerprint");
-    vi.mocked(extractFingerprint).mockReturnValue({} as never);
+    vi.mocked(extractFingerprint).mockReturnValue({
+      urls: [],
+      phoneNumbers: [],
+      normalizedText: "",
+      textHash: "",
+    } as never);
     const { matchCampaign, findMatchingUnlinkedReport } = await import(
       "@/lib/campaigns/matcher"
     );
@@ -152,6 +160,71 @@ describe("POST /api/reports", () => {
     expect(evidenceBuilder.eq).toHaveBeenCalledWith(
       "id",
       "11111111-1111-4111-8111-111111111111"
+    );
+  });
+
+  it("normalizes and persists structured mobile-money fields (Phase 12)", async () => {
+    const reportsBuilder: Record<string, unknown> = {
+      insert: vi.fn(() => reportsBuilder),
+      select: vi.fn(() => reportsBuilder),
+      single: vi.fn(async () => ({ data: { id: "report-1" }, error: null })),
+      update: vi.fn(() => reportsBuilder),
+      eq: vi.fn(async () => ({ data: null, error: null })),
+    };
+    fromMock.mockReturnValue(reportsBuilder);
+
+    const { analyzeContent } = await import("@/lib/ai/risk-analysis");
+    vi.mocked(analyzeContent).mockResolvedValue({
+      risk_level: "medium",
+      risk_score: 55,
+      category: "mobile_money_fraud",
+      language: "en",
+      reasons: ["ok"],
+      indicators: {
+        has_urgency_pressure: false,
+        requests_payment: true,
+        requests_personal_info: false,
+        impersonates_institution: null,
+        contains_suspicious_link: false,
+      },
+      recommended_action: "none",
+      confidence: "medium",
+      suspicious_phrases: [],
+      needs_human_review: true,
+      source: "rule_based_fallback",
+    } as never);
+
+    const { extractFingerprint } = await import("@/lib/campaigns/fingerprint");
+    vi.mocked(extractFingerprint).mockReturnValue({
+      urls: [],
+      phoneNumbers: [],
+      normalizedText: "",
+      textHash: "",
+    } as never);
+    const { matchCampaign, findMatchingUnlinkedReport } = await import(
+      "@/lib/campaigns/matcher"
+    );
+    vi.mocked(matchCampaign).mockResolvedValue(null as never);
+    vi.mocked(findMatchingUnlinkedReport).mockResolvedValue(null as never);
+
+    const { POST } = await import("@/app/api/reports/route");
+    const req = new NextRequest("http://localhost/api/reports", {
+      method: "POST",
+      body: JSON.stringify({
+        content_type: "text",
+        raw_content: "This MTN agent asked for my PIN.",
+        phone_number: "+237 677 12 34 56",
+        network_provider: "mtn",
+      }),
+    });
+    const res = await POST(req);
+
+    expect(res.status).toBe(201);
+    expect(reportsBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phone_number: "677123456",
+        network_provider: "mtn",
+      })
     );
   });
 });

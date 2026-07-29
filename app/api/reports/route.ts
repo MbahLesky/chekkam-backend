@@ -7,7 +7,7 @@ import { toErrorResponse } from "@/lib/errors";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { analyzeContent } from "@/lib/ai/risk-analysis";
 import { pickLang, tt } from "@/lib/i18n";
-import { extractFingerprint } from "@/lib/campaigns/fingerprint";
+import { extractFingerprint, normalizeCameroonNumber } from "@/lib/campaigns/fingerprint";
 import {
   matchCampaign,
   findMatchingUnlinkedReport,
@@ -59,6 +59,11 @@ export async function POST(req: NextRequest) {
       body.lat !== undefined && body.lng !== undefined
         ? `SRID=4326;POINT(${body.lng} ${body.lat})`
         : null;
+    // Normalized once here so every downstream reader (campaign fingerprint
+    // matching, number-reputation lookups) can compare with plain equality
+    // instead of re-normalizing "+237 677..." vs "677..." differently.
+    const normalizedPhone = body.phone_number ? normalizeCameroonNumber(body.phone_number) : null;
+    const normalizedWallet = body.wallet_number ? normalizeCameroonNumber(body.wallet_number) : null;
 
     const { data: inserted, error: insertError } = await admin
       .from("reports")
@@ -71,6 +76,11 @@ export async function POST(req: NextRequest) {
         language: body.language,
         location,
         status: "pending",
+        phone_number: normalizedPhone,
+        wallet_number: normalizedWallet,
+        merchant_name: body.merchant_name ?? null,
+        transaction_reference: body.transaction_reference ?? null,
+        network_provider: body.network_provider ?? null,
       })
       .select("id")
       .single();
@@ -93,6 +103,15 @@ export async function POST(req: NextRequest) {
         preferredLanguage: preferredLang,
       });
       const fingerprint = extractFingerprint(body.raw_content ?? "");
+      // A structured mobile-money report (Phase 12) may name a phone/wallet
+      // number in its own field without it ever appearing in the free-text
+      // description — seed it into the fingerprint either way, so campaign
+      // clustering and number-reputation lookups still see it.
+      for (const structured of [normalizedPhone, normalizedWallet]) {
+        if (structured && !fingerprint.phoneNumbers.includes(structured)) {
+          fingerprint.phoneNumbers.push(structured);
+        }
+      }
 
       let campaignId = await matchCampaign(admin, fingerprint);
       if (campaignId) {
@@ -172,10 +191,12 @@ export async function GET(req: NextRequest) {
     const riskLevel = searchParams.get("risk_level");
     const category = searchParams.get("category");
     const channel = searchParams.get("channel");
+    const networkProvider = searchParams.get("network_provider");
     if (status) query = query.eq("status", status);
     if (riskLevel) query = query.eq("risk_level", riskLevel);
     if (category) query = query.eq("category", category);
     if (channel) query = query.eq("channel", channel);
+    if (networkProvider) query = query.eq("network_provider", networkProvider);
 
     const { data, error } = await query;
     if (error) throw error;
