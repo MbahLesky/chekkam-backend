@@ -18,6 +18,11 @@ vi.mock("@/lib/ai/ocr", () => ({
 describe("content authenticity — no OPENAI_API_KEY", () => {
   beforeEach(() => {
     vi.stubEnv("OPENAI_API_KEY", "");
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("text: returns unavailable rather than fabricating a result", async () => {

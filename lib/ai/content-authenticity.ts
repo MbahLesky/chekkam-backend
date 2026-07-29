@@ -48,12 +48,25 @@ function clampConfidence(raw: "low" | "medium" | "high"): AuthenticityConfidence
   return raw === "high" ? "medium" : raw;
 }
 
+/**
+ * Keep provider diagnostics out of citizen-facing results and out of stored
+ * evidence, but leave a safe operational breadcrumb in server logs. This is
+ * enough to distinguish a missing key, a quota/auth/model response, a timeout,
+ * or an invalid payload without logging submitted media, prompts, or secrets.
+ */
+function logProviderUnavailable(reason: string) {
+  console.warn(`[content-authenticity] provider unavailable: ${reason}`);
+}
+
 async function callVisionOrTextModel(
   systemPrompt: string,
   userContent: string | Array<Record<string, unknown>>
 ): Promise<z.infer<typeof authenticitySchema> | null> {
   const { apiKey, model } = getAiConfig();
-  if (!apiKey) return null;
+  if (!apiKey) {
+    logProviderUnavailable("OPENAI_API_KEY is not configured");
+    return null;
+  }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), AUTHENTICITY_TIMEOUT_MS);
@@ -73,15 +86,30 @@ async function callVisionOrTextModel(
       }),
       signal: controller.signal,
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      logProviderUnavailable(`OpenAI HTTP ${response.status}`);
+      return null;
+    }
 
     const payload = await response.json();
     const raw = payload?.choices?.[0]?.message?.content;
-    if (typeof raw !== "string") return null;
+    if (typeof raw !== "string") {
+      logProviderUnavailable("OpenAI response was missing message content");
+      return null;
+    }
 
     const parsed = authenticitySchema.safeParse(JSON.parse(raw));
-    return parsed.success ? parsed.data : null;
-  } catch {
+    if (!parsed.success) {
+      logProviderUnavailable("OpenAI response did not match the expected schema");
+      return null;
+    }
+    return parsed.data;
+  } catch (error) {
+    logProviderUnavailable(
+      error instanceof DOMException && error.name === "AbortError"
+        ? "OpenAI request timed out"
+        : "OpenAI request failed before a usable response"
+    );
     return null;
   } finally {
     clearTimeout(timeout);
@@ -154,7 +182,7 @@ export async function analyzeImageAuthenticity(
     status: "done",
     ai_likelihood: parsed.ai_likelihood,
     confidence: clampConfidence(parsed.confidence),
-    indicators: { ...parsed.indicators, exif_metadata_present: exifPresent },
+    indicators: parsed.indicators,
     explanation: parsed.explanation,
   };
 }
