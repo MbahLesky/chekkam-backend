@@ -182,6 +182,11 @@ const strings = {
     preparingCertificate: "Preparing certificate...",
     failedDownloadCertificate: "Failed to download the certificate.",
     certificateHint: "A detached attestation of this record - not a copy of the original file.",
+    downloadVerificationLabel: "Download QR verification label",
+    preparingVerificationLabel: "Preparing QR label...",
+    failedDownloadVerificationLabel: "Failed to download the QR verification label.",
+    verificationLabelHint:
+      "A separate label for the untouched original document. It does not change or embed anything in the original file.",
     humanApprovalGate: "Human approval gate",
     publicAlertsAdminIntro: "Nothing here reaches citizens until you press Publish.",
     createNewAlert: "Create new alert",
@@ -466,6 +471,11 @@ const strings = {
     preparingCertificate: "Préparation du certificat...",
     failedDownloadCertificate: "Échec du téléchargement du certificat.",
     certificateHint: "Une attestation détachée de ce dossier - pas une copie du fichier original.",
+    downloadVerificationLabel: "Télécharger l'étiquette QR de vérification",
+    preparingVerificationLabel: "Préparation de l'étiquette QR...",
+    failedDownloadVerificationLabel: "Échec du téléchargement de l'étiquette QR.",
+    verificationLabelHint:
+      "Une étiquette distincte pour le document original non modifié. Elle ne modifie ni n'intègre quoi que ce soit dans le fichier original.",
     humanApprovalGate: "Validation humaine",
     publicAlertsAdminIntro: "Rien n'atteint les citoyens avant que vous appuyiez sur Publier.",
     createNewAlert: "Créer une alerte",

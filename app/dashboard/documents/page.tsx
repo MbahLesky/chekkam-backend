@@ -44,10 +44,10 @@ type SignableInstitution = {
 const inputClass =
   "w-full rounded-[var(--radius-chekkam-sm)] border border-chekkam-border bg-chekkam-tint px-3.5 py-2.5 text-sm text-chekkam-ink outline-none transition focus:border-chekkam-primary focus:bg-chekkam-surface-raised focus:ring-2 focus:ring-chekkam-primary/20";
 
-// Certificate download is restricted to the same roles the API route enforces
+// Verification-label download is restricted to the same roles the API route enforces
 // (institution_officer/admin/super_admin) - this is UI politeness, not the
-// security boundary, which lives server-side in app/api/documents/[id]/certificate.
-const CERTIFICATE_ROLES = new Set(["institution_officer", "admin", "super_admin"]);
+// security boundary, which lives server-side in app/api/documents/[id]/verification-label.
+const VERIFICATION_LABEL_ROLES = new Set(["institution_officer", "admin", "super_admin"]);
 
 export default function DocumentsDashboardPage() {
   const { lang, t } = useI18n();
@@ -58,8 +58,8 @@ export default function DocumentsDashboardPage() {
   const [selected, setSelected] = useState<Document | null>(null);
   const [signResult, setSignResult] = useState<SignResult | null>(null);
   const [role, setRole] = useState<string | null>(null);
-  const [certLoadingId, setCertLoadingId] = useState<string | null>(null);
-  const [certError, setCertError] = useState<string | null>(null);
+  const [labelLoadingId, setLabelLoadingId] = useState<string | null>(null);
+  const [labelError, setLabelError] = useState<string | null>(null);
 
   const getAccessToken = useCallback(async (): Promise<string | undefined> => {
     const {
@@ -92,17 +92,17 @@ export default function DocumentsDashboardPage() {
     });
   }, [supabase]);
 
-  const canDownloadCertificate = !!role && CERTIFICATE_ROLES.has(role);
+  const canDownloadVerificationLabel = !!role && VERIFICATION_LABEL_ROLES.has(role);
 
-  const downloadCertificate = useCallback(
+  const downloadVerificationLabel = useCallback(
     async (doc: { id: string; verification_id: string }) => {
-      setCertLoadingId(doc.id);
-      setCertError(null);
+      setLabelLoadingId(doc.id);
+      setLabelError(null);
       try {
         const headers = await authHeaders();
-        const res = await fetch(`/api/documents/${doc.id}/certificate?lang=${lang}`, { headers });
+        const res = await fetch(`/api/documents/${doc.id}/verification-label?lang=${lang}`, { headers });
         if (!res.ok) {
-          let message = t("failedDownloadCertificate");
+          let message = t("failedDownloadVerificationLabel");
           try {
             const body = await res.json();
             message = body?.error?.message ?? message;
@@ -115,15 +115,15 @@ export default function DocumentsDashboardPage() {
         const url = URL.createObjectURL(blob);
         const link = window.document.createElement("a");
         link.href = url;
-        link.download = `Chekkam-Certificate-${doc.verification_id}.pdf`;
+        link.download = `Verification-Label-${doc.verification_id}.pdf`;
         window.document.body.appendChild(link);
         link.click();
         link.remove();
         URL.revokeObjectURL(url);
       } catch (err) {
-        setCertError(err instanceof Error ? err.message : t("failedDownloadCertificate"));
+        setLabelError(err instanceof Error ? err.message : t("failedDownloadVerificationLabel"));
       } finally {
-        setCertLoadingId(null);
+        setLabelLoadingId(null);
       }
     },
     [authHeaders, lang, t]
@@ -205,7 +205,7 @@ export default function DocumentsDashboardPage() {
       </div>
 
       {error && <ErrorState message={error} />}
-      {certError && <ErrorState message={certError} />}
+      {labelError && <ErrorState message={labelError} />}
       {loading && <LoadingState message={t("loading")} />}
 
       <Card className="overflow-hidden">
@@ -237,16 +237,18 @@ export default function DocumentsDashboardPage() {
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-3">
-                    {canDownloadCertificate && (
+                    {canDownloadVerificationLabel && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          downloadCertificate(doc);
+                          downloadVerificationLabel(doc);
                         }}
-                        disabled={certLoadingId === doc.id}
+                        disabled={labelLoadingId === doc.id}
                         className="text-xs font-semibold text-chekkam-primary hover:underline disabled:opacity-50"
                       >
-                        {certLoadingId === doc.id ? t("preparingCertificate") : t("downloadCertificate")}
+                        {labelLoadingId === doc.id
+                          ? t("preparingVerificationLabel")
+                          : t("downloadVerificationLabel")}
                       </button>
                     )}
                     <button
@@ -271,8 +273,8 @@ export default function DocumentsDashboardPage() {
         <SignResultModal
           result={signResult}
           onClose={() => setSignResult(null)}
-          onDownloadCertificate={downloadCertificate}
-          certLoading={certLoadingId === signResult.id}
+          onDownloadVerificationLabel={downloadVerificationLabel}
+          labelLoading={labelLoadingId === signResult.id}
         />
       )}
       {selected && (
@@ -454,13 +456,13 @@ function ModalShell({ onClose, children }: { onClose: () => void; children: Reac
 function SignResultModal({
   result,
   onClose,
-  onDownloadCertificate,
-  certLoading,
+  onDownloadVerificationLabel,
+  labelLoading,
 }: {
   result: SignResult;
   onClose: () => void;
-  onDownloadCertificate: (doc: { id: string; verification_id: string }) => void;
-  certLoading: boolean;
+  onDownloadVerificationLabel: (doc: { id: string; verification_id: string }) => void;
+  labelLoading: boolean;
 }) {
   const { t } = useI18n();
   return (
@@ -479,13 +481,13 @@ function SignResultModal({
       </div>
       {/* Gate 1: the success state's one clear next action. */}
       <Button
-        onClick={() => onDownloadCertificate(result)}
-        loading={certLoading}
-        loadingText={t("preparingCertificate")}
+        onClick={() => onDownloadVerificationLabel(result)}
+        loading={labelLoading}
+        loadingText={t("preparingVerificationLabel")}
         variant="solid"
         className="mt-5 w-full"
       >
-        {t("downloadCertificate")}
+        {t("downloadVerificationLabel")}
       </Button>
       <a
         href={result.qr_payload}
@@ -495,7 +497,7 @@ function SignResultModal({
       >
         Open public verification page
       </a>
-      <p className="mt-2 text-center text-xs text-chekkam-faint">{t("certificateHint")}</p>
+      <p className="mt-2 text-center text-xs text-chekkam-faint">{t("verificationLabelHint")}</p>
       <Button onClick={onClose} variant="ghost" className="mt-3 w-full">
         {t("done")}
       </Button>
