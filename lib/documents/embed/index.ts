@@ -1,4 +1,3 @@
-import { fileTypeFromBuffer } from "file-type";
 import { embedPdfMarker, extractPdfMarker } from "./pdf";
 import { embedDocxMarker, extractDocxMarker } from "./docx";
 import { embedPngMarker, extractPngMarker } from "./png";
@@ -24,6 +23,15 @@ export type EmbedResult = { buffer: Buffer; mimeType: string };
  * as genuine with zero changes to the verification engine.
  */
 export async function embedInvisibleMarker(buffer: Buffer, marker: string): Promise<EmbedResult | null> {
+  // Dynamic import deliberately: file-type is ESM-only, and a static
+  // top-level import here breaks tsx's CJS-based module resolution the
+  // instant this module loads — which crashed `npm run db:seed` (tsx
+  // scripts/seed.ts -> sign-document.ts -> here), and with it the whole
+  // `db:migrate && db:seed && next start` production boot chain. Next.js's
+  // own bundler resolves the static form fine (that's how every other
+  // file-type import in this codebase is written) — this file is the one
+  // exception because it's reachable from a script tsx executes directly.
+  const { fileTypeFromBuffer } = await import("file-type");
   const sniffed = await fileTypeFromBuffer(buffer);
   if (!sniffed || !SUPPORTED_MIME_TYPES.has(sniffed.mime)) return null;
 
