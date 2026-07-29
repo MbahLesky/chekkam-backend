@@ -1,0 +1,70 @@
+{
+  "manifest_version": 1,
+  "manifest_id": "chekkam-local-classifier-sources",
+  "updated_at": "2026-07-29",
+  "default_training_mode": "cameroon_seed_only",
+  "policy": {
+    "network_downloads": "never performed by this repository",
+    "raw_external_data": "must not be committed",
+    "review_requirement": "Every external row needs an explicit human-approved risk label before training.",
+    "accuracy_claims": "A source being listed does not establish real-world accuracy or authorize a performance claim."
+  },
+  "sources": [
+    {
+      "id": "cameroon_seed_v1",
+      "dataset_version": "2026-07-27",
+      "display_name": "Chekkam Cameroon illustrative seed set",
+      "source_url": null,
+      "license_or_terms": "Project-authored illustrative examples; not a collected public corpus.",
+      "training_approval": "demo_only",
+      "allowed_modalities": ["message_text"],
+      "notes": "This is the committed default model input. It still requires domain and language review before any accuracy claim."
+    },
+    {
+      "id": "uci_phiusiil_2024",
+      "dataset_version": "2024-03-03",
+      "display_name": "UCI PhiUSIIL Phishing URL (Website)",
+      "source_url": "https://archive.ics.uci.edu/dataset/967/phiusil-phishing-url-dataset",
+      "citation": "Prasad, A. & Chandra, S. (2024). PhiUSIIL Phishing URL (Website), UCI Machine Learning Repository. https://doi.org/10.1016/j.cose.2023.103545",
+      "license_or_terms": "CC BY 4.0 (confirm the current source page before each acquisition).",
+      "training_approval": "approved_after_human_review",
+      "required_attribution": "Cite the UCI dataset and its DOI in any model card or publication using reviewed rows.",
+      "allowed_modalities": ["url_lexical_text", "provider_features_for_review_only"],
+      "notes": "Do not crawl or visit target URLs. The current TF-IDF model may consume only reviewer-provided text/URL lexical strings, never the provider feature columns directly."
+    },
+    {
+      "id": "difraud_phishing_c459612",
+      "dataset_version": "c459612",
+      "display_name": "DiFrauD phishing email corpus",
+      "source_url": "https://huggingface.co/datasets/difraud/difraud/tree/main/phishing",
+      "citation": "DiFrauD (Domain Independent Fraud Detection), phishing configuration. See the dataset card for the current citation.",
+      "license_or_terms": "MIT according to the dataset card; confirm the pinned revision and current dataset card before acquisition.",
+      "training_approval": "approved_after_human_review",
+      "required_attribution": "Keep the source URL, pinned revision, and dataset-card citation with the model record.",
+      "allowed_modalities": ["email_text"],
+      "notes": "Its binary deceptive/non-deceptive label is review evidence only. Do not import raw headers, addresses, attachments, credentials, or personally identifying content into this text model."
+    },
+    {
+      "id": "phishtank_online_valid",
+      "dataset_version": "live_feed",
+      "display_name": "PhishTank verified online phishing feed",
+      "source_url": "https://phishtank.org/developer_info.php",
+      "terms_url": "https://phishtank.org/terms.php",
+      "license_or_terms": "Provider terms govern access and use; re-check terms and API requirements before any acquisition.",
+      "training_approval": "not_approved_without_terms_review",
+      "allowed_modalities": ["url_lexical_text"],
+      "notes": "Listed for provenance only. The loader rejects it until a maintainer completes a current terms/licensing review and deliberately updates this versioned manifest."
+    },
+    {
+      "id": "openphish_community",
+      "dataset_version": "live_feed",
+      "display_name": "OpenPhish Community Feed",
+      "source_url": "https://openphish.com/phishing_feeds.html",
+      "terms_url": "https://www.openphish.com/terms.html",
+      "license_or_terms": "Provider terms govern the community feed and may change.",
+      "training_approval": "not_approved_without_terms_review",
+      "allowed_modalities": ["url_lexical_text"],
+      "notes": "Listed only to prevent accidental use under an assumed licence. The loader rejects it until written or terms approval is recorded in a new manifest version."
+    }
+  ]
+}

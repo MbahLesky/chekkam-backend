@@ -1,6 +1,6 @@
 """
 Trains a small TF-IDF + multinomial logistic regression classifier on
-data/cameroon_seed.jsonl and exports ml/model.json for pure-TypeScript
+data/cameroon_seed.jsonl by default and exports ml/model.json for pure-TypeScript
 inference (lib/ai/local-model.ts) — no scikit-learn dependency, so the exact
 math is fully known and reproducible in both Python and TypeScript.
 
@@ -12,13 +12,34 @@ lib/ai/risk-analysis.ts, since this dataset is too small to learn a
 reliable 9-way category classifier honestly.
 
 Run: python ml/train.py
+Reviewed rows (explicit opt-in): python ml/train.py --include-reviewed
 """
+import argparse
 import json
 import math
 import re
 from pathlib import Path
 
 import numpy as np
+
+try:
+    from dataset_pipeline import (
+        DEFAULT_MANIFEST_PATH,
+        DEFAULT_REVIEWED_DIR,
+        load_manifest,
+        load_reviewed_rows,
+        load_seed_rows,
+        source_counts,
+    )
+except ImportError:  # Supports ``python -m ml.train`` as well as direct execution.
+    from ml.dataset_pipeline import (  # type: ignore[no-redef]
+        DEFAULT_MANIFEST_PATH,
+        DEFAULT_REVIEWED_DIR,
+        load_manifest,
+        load_reviewed_rows,
+        load_seed_rows,
+        source_counts,
+    )
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_PATH = ROOT / "data" / "cameroon_seed.jsonl"
@@ -40,13 +61,16 @@ def tokenize(text: str) -> list[str]:
     return [t.lower() for t in TOKEN_PATTERN.findall(text)]
 
 
-def load_rows() -> list[dict]:
-    rows = []
-    with open(DATA_PATH, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                rows.append(json.loads(line))
+def load_rows(
+    include_reviewed: bool = False,
+    reviewed_dir: Path = DEFAULT_REVIEWED_DIR,
+    manifest_path: Path = DEFAULT_MANIFEST_PATH,
+) -> list[dict]:
+    """Return the seed set, plus reviewed rows only when explicitly requested."""
+
+    rows = load_seed_rows(DATA_PATH)
+    if include_reviewed:
+        rows.extend(load_reviewed_rows(reviewed_dir, manifest_path))
     return rows
 
 
@@ -125,8 +149,71 @@ def evaluate(X: np.ndarray, y_idx: np.ndarray, W: np.ndarray, b: np.ndarray) -> 
     return {"accuracy": accuracy, "per_class": per_class, "confusion": confusion.tolist()}
 
 
-def main():
-    rows = load_rows()
+def print_training_summary(train_metrics: dict, test_metrics: dict, vocab_size: int, n_train: int, n_test: int) -> None:
+    print(f"Vocabulary size: {vocab_size}")
+    print(f"Train accuracy: {train_metrics['accuracy']:.3f} (n={n_train})")
+    print(f"Test accuracy: {test_metrics['accuracy']:.3f} (n={n_test})")
+    for label, metrics in test_metrics["per_class"].items():
+        print(
+            f"  {label}: precision={metrics['precision']:.2f} "
+            f"recall={metrics['recall']:.2f} f1={metrics['f1']:.2f} "
+            f"support={metrics['support']}"
+        )
+    print(f"Test confusion matrix (rows=true, cols=pred, order={CLASSES}):")
+    for row in test_metrics["confusion"]:
+        print(f"  {row}")
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Train the local text/URL risk model. The committed seed-only model is the default; "
+            "external rows require --include-reviewed."
+        )
+    )
+    parser.add_argument(
+        "--include-reviewed",
+        action="store_true",
+        help="add validated local data/reviewed JSONL, JSON-array, or CSV rows to the committed seed set",
+    )
+    parser.add_argument(
+        "--reviewed-dir",
+        type=Path,
+        default=DEFAULT_REVIEWED_DIR,
+        help="directory containing reviewed JSONL, JSON-array, or CSV files (default: data/reviewed)",
+    )
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        default=DEFAULT_MANIFEST_PATH,
+        help="versioned dataset source manifest (default: data/dataset-manifest.v1.json)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="validate/train and print metrics without replacing model.json or METRICS.md",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None):
+    args = parse_args(argv)
+    rows = load_rows(
+        include_reviewed=args.include_reviewed,
+        reviewed_dir=args.reviewed_dir,
+        manifest_path=args.manifest,
+    )
+    provenance = {
+        "mode": "seed_plus_reviewed" if args.include_reviewed else "seed_only",
+        "source_counts": source_counts(rows),
+        "reviewed_rows": 0,
+    }
+    provenance["reviewed_rows"] = sum(
+        count for source, count in provenance["source_counts"].items() if source != "cameroon_seed_v1"
+    )
+    if args.include_reviewed:
+        provenance["manifest_version"] = load_manifest(args.manifest)["manifest_version"]
+
     rng = np.random.default_rng(SHUFFLE_SEED)
     order = rng.permutation(len(rows))
     rows = [rows[i] for i in order]
@@ -148,6 +235,16 @@ def main():
     train_metrics = evaluate(X_train, y_train, W, b)
     test_metrics = evaluate(X_test, y_test, W, b)
 
+    print_training_summary(train_metrics, test_metrics, len(vocab), len(train_rows), len(test_rows))
+    if args.include_reviewed:
+        print(
+            f"Reviewed rows: {provenance['reviewed_rows']} "
+            f"(sources: {provenance['source_counts']})"
+        )
+    if args.dry_run:
+        print("Dry run: model.json and METRICS.md were not changed.")
+        return
+
     MODEL_PATH.write_text(
         json.dumps(
             {
@@ -165,19 +262,25 @@ def main():
         encoding="utf-8",
     )
 
-    print(f"Vocabulary size: {len(vocab)}")
-    print(f"Train accuracy: {train_metrics['accuracy']:.3f} (n={len(train_rows)})")
-    print(f"Test accuracy: {test_metrics['accuracy']:.3f} (n={len(test_rows)})")
-    for label, m in test_metrics["per_class"].items():
-        print(f"  {label}: precision={m['precision']:.2f} recall={m['recall']:.2f} f1={m['f1']:.2f} support={m['support']}")
-    print(f"Test confusion matrix (rows=true, cols=pred, order={CLASSES}):")
-    for row in test_metrics["confusion"]:
-        print(f"  {row}")
-
-    write_metrics_doc(train_metrics, test_metrics, len(vocab), len(train_rows), len(test_rows))
+    write_metrics_doc(
+        train_metrics,
+        test_metrics,
+        len(vocab),
+        len(train_rows),
+        len(test_rows),
+        provenance=provenance,
+    )
 
 
-def write_metrics_doc(train_metrics, test_metrics, vocab_size, n_train, n_test):
+def write_metrics_doc(
+    train_metrics,
+    test_metrics,
+    vocab_size,
+    n_train,
+    n_test,
+    *,
+    provenance: dict | None = None,
+):
     lines = [
         "# Local classifier — training metrics",
         "",
@@ -227,6 +330,22 @@ def write_metrics_doc(train_metrics, test_metrics, vocab_size, n_train, n_test):
         "| Class | Precision | Recall | F1 | Support |",
         "|---|---:|---:|---:|---:|",
     ]
+    if provenance and provenance.get("reviewed_rows"):
+        source_summary = ", ".join(
+            f"{source}: {count}" for source, count in provenance["source_counts"].items()
+        )
+        model_heading = lines.index("## Model")
+        lines[model_heading:model_heading] = [
+            "### Reviewed external rows (explicit opt-in)",
+            "",
+            "This run included human-approved external rows under the versioned source manifest.",
+            f"- Manifest version: {provenance.get('manifest_version', 'unknown')}",
+            f"- Source counts: {source_summary}",
+            "- Provider labels were not accepted automatically; every included row carried a human",
+            "  approval record. These held-out figures are still not field accuracy or a claim that",
+            "  the model can determine whether content is legitimate or AI-generated.",
+            "",
+        ]
     for label, m in test_metrics["per_class"].items():
         lines.append(f"| {label} | {m['precision']:.2f} | {m['recall']:.2f} | {m['f1']:.2f} | {m['support']} |")
 

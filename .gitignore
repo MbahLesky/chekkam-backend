@@ -40,3 +40,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Externally acquired classifier data can carry licence, privacy, and malware
+# handling restrictions. Keep only the versioned source manifest in Git.
+/data/external/
+/data/inbox/
+/data/reviewed/*.jsonl
+/data/reviewed/*.json
+/data/reviewed/*.csv
+!/data/reviewed/.gitkeep
+
+# Python bytecode produced by the local classifier's validation smoke tests.
+/ml/__pycache__/

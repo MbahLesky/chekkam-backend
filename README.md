@@ -56,6 +56,12 @@ See `.env.example` for the full list with one-line comments per variable. Summar
 | Upstash Redis | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | `/api/extension/check` rate-limits in-memory instead (per-process only) |
 | Privacy salt | `CHANNEL_ID_SALT` | A dev-only fallback salt hashes phone numbers/chat IDs instead — set a real one before real traffic |
 
+The local text/URL risk classifier is also available without an API key. Its
+committed demo model is deliberately small; the safe, opt-in reviewed-data
+training path and source manifest are documented in
+[`ml/DATASET_PIPELINE.md`](ml/DATASET_PIPELINE.md). It does not detect whether
+images, video, documents, or audio are AI-generated.
+
 ## 3. Onboarding an institution (document signing)
 
 1. As an admin, `POST /api/institutions` with a Bearer token — see the response's
