@@ -23,6 +23,7 @@ import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv, requireEnv } from "./lib/load-env.mjs";
 import { signDocumentCore } from "../lib/documents/sign-document";
+import { getInstitutionPrivateKey } from "../lib/crypto/sign";
 
 loadEnv();
 requireEnv(["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]);
@@ -33,12 +34,11 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 );
 
-// Fixed so it matches the DOCUMENT_SIGNING_KEY_<id> private key already set in
-// Railway — this script must never generate a new keypair for this institution.
+// Fixed demo institution. Its public key is derived from the configured private
+// key below; this script never generates a new keypair or writes private key
+// material to the database.
 const INSTITUTION_ID = "0b8929f6-22e2-400a-8d91-af9e7f70280c";
 const INSTITUTION_NAME = "Lycée Bilingue de Yaoundé";
-const INSTITUTION_PUBLIC_KEY_PEM =
-  "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE0y671FNNaIqTtmSQvSG9G2ThKniv\nKa3YQUgmGrTj7jd+xnLyvpVyX6S2c001RJrpa5uDhNSA59zwa6xEk3O0vA==\n-----END PUBLIC KEY-----";
 
 const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL || "admin@chekkam.demo";
 const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD || "ChekkamDemo123!";
@@ -55,6 +55,20 @@ const section = (title: string) => console.log(`\n=== ${title} ===`);
 
 function envVarNameFor(institutionId: string): string {
   return `DOCUMENT_SIGNING_KEY_${institutionId.replace(/-/g, "_").toUpperCase()}`;
+}
+
+/**
+ * The seeded demo organisation must use the public half of the exact key
+ * Railway uses to sign. Keeping this derivation local prevents a stale
+ * hard-coded public key from making every genuine demo document look tampered.
+ */
+function configuredDemoInstitutionPublicKey(): string {
+  return crypto
+    .createPublicKey(getInstitutionPrivateKey(INSTITUTION_ID))
+    .export({ type: "spki", format: "pem" })
+    .toString()
+    .replace(/\r\n/g, "\n")
+    .trim();
 }
 
 async function getOrCreateAuthUser(email: string, password: string) {
@@ -85,13 +99,25 @@ async function upsertProfile(userId: string, role: string, displayName: string) 
 
 async function ensureInstitution(): Promise<string> {
   const envVarName = envVarNameFor(INSTITUTION_ID);
+  const configuredPublicKey = configuredDemoInstitutionPublicKey();
   const { data: existing } = await supabase
     .from("institutions")
-    .select("id")
+    .select("id, signing_public_key")
     .eq("id", INSTITUTION_ID)
     .maybeSingle();
 
   if (existing) {
+    const storedPublicKey = (existing.signing_public_key ?? "")
+      .replace(/\r\n/g, "\n")
+      .trim();
+    if (storedPublicKey !== configuredPublicKey) {
+      const { error } = await supabase
+        .from("institutions")
+        .update({ signing_public_key: configuredPublicKey, signing_key_ref: envVarName })
+        .eq("id", INSTITUTION_ID);
+      if (error) throw error;
+      log("Synchronized the demo institution public signing key with its configured signing key.");
+    }
     log(`Institution "${INSTITUTION_NAME}" already exists (id: ${INSTITUTION_ID})`);
     return INSTITUTION_ID;
   }
@@ -102,7 +128,7 @@ async function ensureInstitution(): Promise<string> {
     type: "school",
     verified: true,
     status: "active",
-    signing_public_key: INSTITUTION_PUBLIC_KEY_PEM,
+    signing_public_key: configuredPublicKey,
     signing_key_ref: envVarName,
     contact_email: "admin@example.cm",
   });
