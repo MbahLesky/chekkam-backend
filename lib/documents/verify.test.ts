@@ -150,4 +150,53 @@ describe("verifyByUpload", () => {
     expect(result.status).toBe("revoked");
     expect(result.reason).toBe("Superseded");
   });
+
+  it("returns tampered — not genuine — when a hash mismatch is only rescued by a findable ID inside the bytes", async () => {
+    // Regression test: the hash-only lookup's ID-extraction fallback used to
+    // call verifyByIdOrPin() directly, which has no uploaded file to hash —
+    // so ANY tampered copy that still contains its own findable
+    // "CHK-XXXX-XXXX" text (printed on a certificate, or, since
+    // lib/documents/embed/, invisibly embedded in the file's own metadata)
+    // was reported "genuine" purely because the ID existed and was active,
+    // regardless of whether these exact bytes matched what was signed.
+    //
+    // Needs a mock that actually distinguishes the two lookups (the shared
+    // makeAdmin() ignores its filter arguments and would return the same
+    // doc for both, defeating the scenario) — first .maybeSingle() call is
+    // the failed hash-only lookup, second is the ID-based one the fallback
+    // triggers.
+    const doc = {
+      id: "doc-1",
+      status: "active",
+      expiry_date: null,
+      file_hash: fileHash,
+      signature: validSignature,
+      document_type: "certificate",
+      institutions: { name: "Test University", signing_public_key: publicKey },
+    };
+    let maybeSingleCallCount = 0;
+    const docBuilder: Record<string, unknown> = {
+      select: vi.fn(() => docBuilder),
+      or: vi.fn(() => docBuilder),
+      eq: vi.fn(() => docBuilder),
+      maybeSingle: vi.fn(async () => {
+        maybeSingleCallCount += 1;
+        // 1st call: hash-only lookup — no row has this (wrong) hash.
+        // 2nd call: the ID-extraction fallback's own lookup — finds the doc.
+        return { data: maybeSingleCallCount === 1 ? null : doc, error: null };
+      }),
+    };
+    const logInsert = vi.fn(async () => ({ data: null, error: null }));
+    const admin = {
+      from: vi.fn((table: string) =>
+        table === "document_verification_logs" ? { insert: logInsert } : docBuilder
+      ),
+    };
+
+    const tamperedBufferWithFindableId = Buffer.from(
+      "this is NOT the original content, but it still has CHK-XXXX-XXXX printed in it"
+    );
+    const result = await verifyByUpload(admin as never, tamperedBufferWithFindableId, null, "web");
+    expect(result.status).toBe("tampered");
+  });
 });

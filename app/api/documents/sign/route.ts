@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
       documentType: parsed.document_type,
       recipientName: parsed.recipient_name,
       fileBuffer: Buffer.from(await file.arrayBuffer()),
+      fileName: file.name,
       actorId: profile.id,
       expiryDate: parsed.expiry_date ?? null,
     });

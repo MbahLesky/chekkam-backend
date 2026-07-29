@@ -13,6 +13,7 @@ type SignResult = {
   qr_payload: string;
   qr_image: string;
   status: string;
+  has_original_download: boolean;
 };
 
 type Document = {
@@ -60,6 +61,8 @@ export default function DocumentsDashboardPage() {
   const [role, setRole] = useState<string | null>(null);
   const [labelLoadingId, setLabelLoadingId] = useState<string | null>(null);
   const [labelError, setLabelError] = useState<string | null>(null);
+  const [originalLoadingId, setOriginalLoadingId] = useState<string | null>(null);
+  const [originalError, setOriginalError] = useState<string | null>(null);
 
   const getAccessToken = useCallback(async (): Promise<string | undefined> => {
     const {
@@ -127,6 +130,44 @@ export default function DocumentsDashboardPage() {
       }
     },
     [authHeaders, lang, t]
+  );
+
+  const downloadOriginal = useCallback(
+    async (doc: { id: string }) => {
+      setOriginalLoadingId(doc.id);
+      setOriginalError(null);
+      try {
+        const headers = await authHeaders();
+        const res = await fetch(`/api/documents/${doc.id}/download-original`, { headers });
+        if (!res.ok) {
+          let message = t("failedDownloadOriginal");
+          try {
+            const body = await res.json();
+            message = body?.error?.message ?? message;
+          } catch {
+            // non-JSON error body; keep the generic message
+          }
+          throw new Error(message);
+        }
+        const disposition = res.headers.get("content-disposition") ?? "";
+        const match = disposition.match(/filename="([^"]+)"/);
+        const filename = match?.[1] ?? "document";
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const link = window.document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        window.document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        setOriginalError(err instanceof Error ? err.message : t("failedDownloadOriginal"));
+      } finally {
+        setOriginalLoadingId(null);
+      }
+    },
+    [authHeaders, t]
   );
 
   const load = useCallback(async () => {
@@ -206,6 +247,7 @@ export default function DocumentsDashboardPage() {
 
       {error && <ErrorState message={error} />}
       {labelError && <ErrorState message={labelError} />}
+      {originalError && <ErrorState message={originalError} />}
       {loading && <LoadingState message={t("loading")} />}
 
       <Card className="overflow-hidden">
@@ -275,6 +317,8 @@ export default function DocumentsDashboardPage() {
           onClose={() => setSignResult(null)}
           onDownloadVerificationLabel={downloadVerificationLabel}
           labelLoading={labelLoadingId === signResult.id}
+          onDownloadOriginal={downloadOriginal}
+          originalLoading={originalLoadingId === signResult.id}
         />
       )}
       {selected && (
@@ -458,11 +502,15 @@ function SignResultModal({
   onClose,
   onDownloadVerificationLabel,
   labelLoading,
+  onDownloadOriginal,
+  originalLoading,
 }: {
   result: SignResult;
   onClose: () => void;
   onDownloadVerificationLabel: (doc: { id: string; verification_id: string }) => void;
   labelLoading: boolean;
+  onDownloadOriginal: (doc: { id: string }) => void;
+  originalLoading: boolean;
 }) {
   const { t } = useI18n();
   return (
@@ -489,6 +537,20 @@ function SignResultModal({
       >
         {t("downloadVerificationLabel")}
       </Button>
+      {result.has_original_download && (
+        <>
+          <Button
+            onClick={() => onDownloadOriginal(result)}
+            loading={originalLoading}
+            loadingText={t("preparingOriginal")}
+            variant="outline"
+            className="mt-3 w-full"
+          >
+            {t("downloadOriginal")}
+          </Button>
+          <p className="mt-2 text-center text-xs text-chekkam-faint">{t("downloadOriginalHint")}</p>
+        </>
+      )}
       <a
         href={result.qr_payload}
         target="_blank"

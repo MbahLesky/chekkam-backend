@@ -2,6 +2,8 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { hashDocument, getInstitutionPrivateKey, signHash } from "@/lib/crypto/sign";
 import { generateVerificationId, generatePinCode } from "@/lib/crypto/ids";
 import { buildVerificationUrl, generateQrDataUrl } from "@/lib/crypto/qrcode";
+import { embedInvisibleMarker } from "@/lib/documents/embed";
+import { bufferToBytea } from "@/lib/documents/bytea";
 
 /**
  * The one and only document signing path (SRS 10.1). Extracted from
@@ -18,6 +20,8 @@ export type SignDocumentInput = {
   documentType: string;
   recipientName?: string | null;
   fileBuffer: Buffer;
+  /** Original upload filename, when known (web form upload). Bot-sourced media has none. */
+  fileName?: string | null;
   actorId: string | null;
   actorType?: "user" | "system" | "api_partner";
   auditAction?: string;
@@ -32,20 +36,36 @@ export type SignDocumentResult = {
   qr_payload: string;
   qr_image: string;
   status: string;
+  /** Whether an invisibly-marked original is available via GET /api/documents/:id/download-original. */
+  has_original_download: boolean;
 };
 
+/**
+ * Generates the verification ID up front (rather than after hashing, as
+ * before) specifically so it can be embedded *inside* supported file formats
+ * (PDF/DOCX/PNG) before the file is hashed and signed — the stored
+ * file_hash/signature then cover this embedded version, so the existing
+ * hash-based verifyByUpload() path needs no changes to recognize a
+ * re-downloaded copy as genuine. Unsupported formats (including video) sign
+ * exactly as before, with no original retained — see lib/documents/embed/.
+ */
 export async function signDocumentCore(
   admin: SupabaseClient,
   input: SignDocumentInput
 ): Promise<SignDocumentResult> {
-  const fileHash = hashDocument(input.fileBuffer);
-  const privateKey = getInstitutionPrivateKey(input.institutionId);
-  const signature = signHash(fileHash, privateKey);
-
   const verificationId = generateVerificationId();
   const pinCode = generatePinCode();
   const qrPayload = buildVerificationUrl(verificationId);
   const qrImage = await generateQrDataUrl(qrPayload);
+
+  const embedded = await embedInvisibleMarker(input.fileBuffer, `Chekkam:${verificationId}`).catch(
+    () => null
+  );
+  const signedBuffer = embedded?.buffer ?? input.fileBuffer;
+
+  const fileHash = hashDocument(signedBuffer);
+  const privateKey = getInstitutionPrivateKey(input.institutionId);
+  const signature = signHash(fileHash, privateKey);
 
   const { data, error } = await admin
     .from("documents")
@@ -59,6 +79,9 @@ export async function signDocumentCore(
       qr_payload: qrPayload,
       pin_code: pinCode,
       expiry_date: input.expiryDate ?? null,
+      original_file_data: embedded ? bufferToBytea(signedBuffer) : null,
+      original_file_mime_type: embedded?.mimeType ?? null,
+      original_file_name: embedded ? (input.fileName ?? "document") : null,
     })
     .select("id, verification_id, pin_code, qr_payload, status")
     .single();
@@ -81,5 +104,6 @@ export async function signDocumentCore(
     qr_payload: data.qr_payload,
     qr_image: qrImage,
     status: data.status,
+    has_original_download: embedded !== null,
   };
 }

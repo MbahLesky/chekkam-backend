@@ -255,12 +255,19 @@ export async function verifyByUpload(
     .maybeSingle();
 
   if (!doc) {
-    // If hash-only lookup failed, check if the uploaded file is a Chekkam Certificate or contains a Verification ID (CHK-XXXX-XXXX)
+    // If hash-only lookup failed, check if the uploaded file contains a
+    // findable Verification ID (CHK-XXXX-XXXX) — e.g. printed on a
+    // certificate, or (since lib/documents/embed/) invisibly embedded in the
+    // file's own metadata. Recurses into this same function WITH that ID so
+    // the hash/signature of *these exact uploaded bytes* still gets checked
+    // via the branch above — never verifyByIdOrPin, which has no file to
+    // hash and would report "genuine" for a tampered copy purely because a
+    // findable ID happens to still be readable inside it.
     const bufferString = fileBuffer.toString("binary");
     const match = bufferString.match(/CHK-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}/i);
     if (match) {
       const extractedId = match[0].toUpperCase();
-      return verifyByIdOrPin(admin, extractedId, channel);
+      return verifyByUpload(admin, fileBuffer, extractedId, channel);
     }
 
     await logAttempt(admin, null, "(hash-only lookup)", "not_found", channel);

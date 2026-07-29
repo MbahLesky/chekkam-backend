@@ -224,6 +224,11 @@ const strings = {
     sourceAi: "AI",
     sourceLocalModel: "Local model",
     sourceRuleBasedFallback: "Rule-based",
+    downloadOriginal: "Download original (with embedded verification)",
+    preparingOriginal: "Preparing...",
+    failedDownloadOriginal: "Failed to download the original file.",
+    downloadOriginalHint:
+      "The exact file you uploaded, unchanged to the eye - a verification marker is embedded invisibly inside it.",
     // Phase 10 — Product Authenticity Platform
     productVerification: "Product verification",
     category: "Category",
@@ -513,6 +518,11 @@ const strings = {
     sourceAi: "IA",
     sourceLocalModel: "Modèle local",
     sourceRuleBasedFallback: "Basé sur des règles",
+    downloadOriginal: "Télécharger l'original (avec vérification intégrée)",
+    preparingOriginal: "Préparation...",
+    failedDownloadOriginal: "Échec du téléchargement du fichier original.",
+    downloadOriginalHint:
+      "Le fichier exact que vous avez téléversé, visuellement inchangé - un marqueur de vérification y est intégré de manière invisible.",
     // Phase 10 — Product Authenticity Platform
     productVerification: "Vérification du produit",
     category: "Catégorie",
