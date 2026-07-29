@@ -45,6 +45,7 @@ describe("runSafetyCheck", () => {
 
     expect(result.input_type).toBe("text");
     expect(result.risk_level).not.toBe("low");
+    expect(result.analysis?.source).toBe("local_model");
     expect(admin._checksBuilder.insert).toHaveBeenCalledWith(
       expect.objectContaining({ input_type: "text", user_id: null })
     );

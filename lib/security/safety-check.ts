@@ -11,6 +11,36 @@ export type SafetyCheckInputType = "link" | "qr" | "file" | "text";
 
 type UrlSignal = { id: string; risk: number; explanation: string };
 
+type AnalysisSource = Awaited<ReturnType<typeof analyzeContent>>["source"];
+
+export type AnalysisEngineSummary = {
+  source: AnalysisSource;
+  detail: string;
+};
+
+function analysisSummary(source: AnalysisSource): AnalysisEngineSummary {
+  switch (source) {
+    case "local_model":
+      return {
+        source,
+        detail:
+          "Chekkam's local scam-and-phishing model assessed the submitted content alongside deterministic safety signals.",
+      };
+    case "ai":
+      return {
+        source,
+        detail:
+          "An AI-assisted analysis assessed the submitted content alongside deterministic safety signals. Human review is still required.",
+      };
+    default:
+      return {
+        source,
+        detail:
+          "Chekkam's deterministic safety rules assessed the submitted content. Human review is still required.",
+      };
+  }
+}
+
 /** SSRF guard: rejects anything but a public http(s) URL. Self-contained
  * here rather than importing a shared url-intelligence module — none
  * currently exists as committed code in this repo. */
@@ -130,6 +160,7 @@ export type SafetyCheckResult = {
   risk_score: number;
   findings: UrlSignal[] | { explanation: string }[];
   recommended_action: string;
+  analysis: AnalysisEngineSummary | null;
 };
 
 /** Coarse 0-100 risk_score -> level mapping shared by every input type here. */
@@ -144,6 +175,7 @@ async function checkLinkOrQr(url: string, language: Lang): Promise<{
   riskScore: number;
   findings: UrlSignal[];
   action: string;
+  analysis: AnalysisEngineSummary;
 }> {
   const parsed = new URL(url);
   await assertPublicHttpUrl(parsed);
@@ -175,6 +207,7 @@ async function checkLinkOrQr(url: string, language: Lang): Promise<{
   return {
     riskScore,
     findings: signals,
+    analysis: analysisSummary(ai.source),
     action:
       riskScore >= 60
         ? "Do not enter credentials or download files. Verify the organization through an official channel."
@@ -252,6 +285,7 @@ export async function runSafetyCheck(
   let action: string;
   let inputSummary: string;
   let evidenceId: string | null = null;
+  let analysis: AnalysisEngineSummary | null = null;
 
   switch (input.inputType) {
     case "link":
@@ -260,6 +294,7 @@ export async function runSafetyCheck(
       riskScore = result.riskScore;
       findings = result.findings;
       action = result.action;
+      analysis = result.analysis;
       inputSummary = input.url.slice(0, 500);
       break;
     }
@@ -268,6 +303,7 @@ export async function runSafetyCheck(
       riskScore = ai.risk_score;
       findings = ai.reasons.map((explanation) => ({ explanation }));
       action = ai.recommended_action;
+      analysis = analysisSummary(ai.source);
       inputSummary = input.text.slice(0, 200);
       break;
     }
@@ -295,6 +331,7 @@ export async function runSafetyCheck(
           });
           riskScore = Math.round(riskScore * 0.4 + ai.risk_score * 0.6);
           findings = [...findings, ...ai.reasons.map((explanation) => ({ explanation }))];
+          analysis = analysisSummary(ai.source);
         }
       }
       break;
@@ -324,5 +361,6 @@ export async function runSafetyCheck(
     risk_score: riskScore,
     findings,
     recommended_action: action,
+    analysis,
   };
 }
