@@ -182,7 +182,7 @@ export async function analyzeImageAuthenticity(
     status: "done",
     ai_likelihood: parsed.ai_likelihood,
     confidence: clampConfidence(parsed.confidence),
-    indicators: parsed.indicators,
+    indicators: { ...parsed.indicators, exif_present: exifPresent },
     explanation: parsed.explanation,
   };
 }
