@@ -8,6 +8,7 @@ import { ValidationError, toErrorResponse } from "@/lib/errors";
 import { parseBody } from "@/lib/validation/parse";
 import { analyzeImageAuthenticity, audioAuthenticityStatus, videoAuthenticityStatus } from "@/lib/ai/content-authenticity";
 import { verifyMediaSource } from "@/lib/media/source-verification";
+import { inspectContentCredentials } from "@/lib/media/content-credentials";
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const RATE_LIMIT = 15;
@@ -43,6 +44,15 @@ function sourceSignal(source: Awaited<ReturnType<typeof verifyMediaSource>>) {
     nature: "registry",
     result: source.status,
     detail: source.detail,
+  };
+}
+
+function provenanceSignal(provenance: Awaited<ReturnType<typeof inspectContentCredentials>>) {
+  return {
+    kind: "content_credentials",
+    nature: provenance.status === "verified" ? "cryptographic" : "deterministic",
+    result: provenance.status,
+    detail: provenance.detail,
   };
 }
 
@@ -118,6 +128,10 @@ export async function POST(req: NextRequest) {
       typeof sourceUrl === "string" && sourceUrl.trim()
         ? await verifyMediaSource(admin, sourceUrl)
         : null;
+    const provenance = await inspectContentCredentials(
+      buffer,
+      mime ?? "application/octet-stream"
+    );
 
     let aiGeneration: {
       status: string;
@@ -173,6 +187,7 @@ export async function POST(req: NextRequest) {
         result: "sha256_computed",
         detail: "A SHA-256 fingerprint was computed for this submitted file.",
       },
+      provenanceSignal(provenance),
       ...(source ? [sourceSignal(source)] : []),
       {
         kind: "ai_generation",
@@ -190,6 +205,7 @@ export async function POST(req: NextRequest) {
       is_proof: false,
       verdict: source?.status === "verified_official_source" ? "source_verified" : "source_unverified",
       source,
+      provenance,
       ai_generation: aiGeneration,
       signals,
       needs_human_review: true,
